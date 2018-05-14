@@ -71,8 +71,9 @@ class RunVaspCustodian(FiretaskBase):
     Optional params:
         job_type: (str) - choose from "normal" (default), "double_relaxation_run" (two consecutive 
             jobs), "full_opt_run" (multiple optimizations), and "neb"
-        handler_group: (str) - group of handlers to use. See handler_groups dict in the code for 
-            the groups and complete list of handlers in each group.
+        handler_group: (str or [ErrorHandler]) - group of handlers to use. See handler_groups dict in the code for
+            the groups and complete list of handlers in each group. Alternatively, you can
+            specify a list of ErrorHandler objects.
         max_force_threshold: (float) - if >0, adds MaxForceErrorHandler. Not recommended for 
             nscf runs.
         scratch_dir: (str) - if specified, uses this directory as the root scratch dir. 
@@ -130,6 +131,11 @@ class RunVaspCustodian(FiretaskBase):
             jobs = VaspJob.double_relaxation_run(vasp_cmd, auto_npar=auto_npar,
                                                  ediffg=self.get("ediffg"),
                                                  half_kpts_first_relax=self.get("half_kpts_first_relax", HALF_KPOINTS_FIRST_RELAX))
+        elif job_type == "metagga_opt_run":
+            jobs = VaspJob.metagga_opt_run(vasp_cmd, auto_npar=auto_npar,
+                                                 ediffg=self.get("ediffg"),
+                                                 half_kpts_first_relax=self.get("half_kpts_first_relax", HALF_KPOINTS_FIRST_RELAX))
+
         elif job_type == "full_opt_run":
             jobs = VaspJob.full_opt_run(vasp_cmd, auto_npar=auto_npar,
                                         ediffg=self.get("ediffg"),
@@ -171,7 +177,12 @@ class RunVaspCustodian(FiretaskBase):
             raise ValueError("Unsupported job type: {}".format(job_type))
 
         # construct handlers
-        handlers = handler_groups[self.get("handler_group", "default")]
+
+        handler_group = self.get("handler_group", "default")
+        if isinstance(handler_group, six.string_types):
+            handlers = handler_groups[handler_group]
+        else:
+            handlers = handler_group
 
         if self.get("max_force_threshold"):
             handlers.append(MaxForceErrorHandler(max_force_threshold=self["max_force_threshold"]))

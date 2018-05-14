@@ -12,6 +12,7 @@ import numpy as np
 
 from monty.json import MontyEncoder, jsanitize
 
+from atomate.vasp.config import DEFUSE_UNSUCCESSFUL
 from fireworks import FiretaskBase, FWAction, explicit_serialize
 from fireworks.utilities.fw_serializers import DATETIME_HANDLER
 
@@ -58,9 +59,11 @@ class VaspToDb(FiretaskBase):
             Supports env_chk. Default: write data to JSON file.
         fw_spec_field (str): if set, will update the task doc with the contents
             of this key in the fw_spec.
-        defuse_unsuccessful (bool): Defuses children fireworks if VASP run state
-            is not "successful"; i.e. both electronic and ionic convergence are reached.
-            Defaults to True.
+        defuse_unsuccessful (bool): this is a three-way toggle on what to do if
+            your job looks OK, but is actually unconverged (either electronic or
+            ionic). True -> mark job as COMPLETED, but defuse children.
+            False --> do nothing, continue with workflow as normal. "fizzle"
+            --> throw an error (mark this job as FIZZLED)
     """
     optional_params = ["calc_dir", "calc_loc", "parse_dos", "bandstructure_mode",
                        "additional_fields", "db_file", "fw_spec_field", "defuse_unsuccessful"]
@@ -77,8 +80,8 @@ class VaspToDb(FiretaskBase):
         logger.info("PARSING DIRECTORY: {}".format(calc_dir))
 
         drone = VaspDrone(additional_fields=self.get("additional_fields"),
-                          parse_dos=self.get("parse_dos", False), compress_dos=1,
-                          bandstructure_mode=self.get("bandstructure_mode", False), compress_bs=1)
+                          parse_dos=self.get("parse_dos", False),
+                          bandstructure_mode=self.get("bandstructure_mode", False))
 
         # assimilate (i.e., parse)
         task_doc = drone.assimilate(calc_dir)
@@ -96,15 +99,26 @@ class VaspToDb(FiretaskBase):
                 f.write(json.dumps(task_doc, default=DATETIME_HANDLER))
         else:
             mmdb = VaspCalcDb.from_db_file(db_file, admin=True)
-            t_id = mmdb.insert_task(task_doc,
-                                    parse_dos=self.get("parse_dos", False),
-                                    parse_bs=bool(self.get("bandstructure_mode", False)))
+            t_id = mmdb.insert_task(
+                task_doc, use_gridfs=self.get("parse_dos", False) or bool(self.get("bandstructure_mode", False)))
             logger.info("Finished parsing with task_id: {}".format(t_id))
 
-        if self.get("defuse_unsuccessful", True):
-            defuse_children = (task_doc["state"] != "successful")
-        else:
-            defuse_children = False
+        defuse_children = False
+        if task_doc["state"] != "successful":
+            defuse_unsuccessful = self.get("defuse_unsuccessful",
+                                           DEFUSE_UNSUCCESSFUL)
+            if defuse_unsuccessful is True:
+                defuse_children = True
+            elif defuse_unsuccessful is False:
+                pass
+            elif defuse_unsuccessful == "fizzle":
+                raise RuntimeError(
+                    "VaspToDb indicates that job is not successful "
+                    "(perhaps your job did not converge within the "
+                    "limit of electronic/ionic iterations)!")
+            else:
+                raise RuntimeError("Unknown option for defuse_unsuccessful: "
+                                   "{}".format(defuse_unsuccessful))
 
         return FWAction(stored_data={"task_id": task_doc.get("task_id", None)},
                         defuse_children=defuse_children)
@@ -768,7 +782,7 @@ class PolarizationToDb(FiretaskBase):
         # Sort polarization tasks
         # nonpolar -> interpolation_n -> interpolation_n-1 -> ...  -> interpolation_1 -> polar
         data = zip(tasks, structure_dicts, outcars, energies_per_atom, energies, sort_weight)
-        data.sort(key=lambda x: x[-1])
+        data = sorted(data,key=lambda x: x[-1])
 
         # Get the tasks, structures, etc in sorted order from the zipped data.
         tasks, structure_dicts, outcars, energies_per_atom, energies, sort_weight = zip(*data)

@@ -3,15 +3,16 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import os
-
 import six
 import monty
+import shutil
+import glob
 
 from fireworks import explicit_serialize, FiretaskBase, FWAction
 
 from atomate.utils.utils import env_chk, load_class, recursive_get_result
 from atomate.utils.fileio import FileClient
-from boltons.fileutils import copytree
+from monty.shutil import copy_r
 
 __author__ = 'Anubhav Jain'
 __email__ = 'ajain@lbl.gov'
@@ -113,7 +114,7 @@ class CopyFilesFromCalcLoc(FiretaskBase):
         elif '$ALL' in filenames:
             if self.get('name_prepend') or self.get('name_append'):
                 raise ValueError('name_prepend or name_append options not compatible with "$ALL" option')
-            copytree(calc_dir, os.getcwd())
+            copy_r(calc_dir, os.getcwd())
             return
         else:
             files_to_copy = filenames
@@ -126,6 +127,28 @@ class CopyFilesFromCalcLoc(FiretaskBase):
 
             fileclient.copy(prev_path_full, dest_path)
 
+
+@explicit_serialize
+class DeleteFiles(FiretaskBase):
+    """
+    Delete files
+    Uses glob to search for files so any pattern it can accept can be used
+
+    Required params:
+        files: list of files to remove
+    """
+
+    required_params = ["files"]
+
+    def run_task(self,fw_spec=None):
+        cwd = os.getcwd()
+
+        for file in self.get("files",[]):
+            for f in glob.glob(os.path.join(cwd,file)):
+                if os.path.isdir(f):
+                    shutil.rmtree(f)
+                else:
+                    os.remove(f)
 
 @explicit_serialize
 class CreateFolder(FiretaskBase):
