@@ -3,13 +3,12 @@
 from __future__ import division, print_function, unicode_literals, absolute_import
 
 """
-This module provides ability to do Defect analysis after defect FWs finished
+This module provides ability to do Defect analysis after defect WF has finished
 
 Makes use of atomate.vasp.firetasks.defects import DefectAnalysisFireTask
 Note alot of this structure is taken from pycdt.utils.parse_calculations and pycdt.......
 
 currently does parsing through a fireworks spec
-TODO: make this FW more transparent about DB entry/looking at DB to make sure not to redo previous calculations...
 """
 
 from fireworks import Firework
