@@ -56,6 +56,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings
         diel_flag (bool): flag to also run dielectric calculations.
             (required for charge corrections to be run) defaults to True.
         n_max (int): maximum supercell size to consider for supercells
+
         vacancies (dict):
             If nothing specified, all vacancies are considered.
             TODO: if more specificity is supplied then limit number of defects created (probably load vacancy pymatgen type)
