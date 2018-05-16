@@ -240,12 +240,12 @@ class DefectSetupFiretask(FiretaskBase):
 
 
                 charges = []
-                if initial_charges['vacancies']:
-                    if vac_symbol in initial_charges['vacancies']: #NOTE this might get problematic if more than one type of vacancy?
-                        charges = initial_charges['vacancies'][vac_symbol]
+                if initial_charges:
+                    if 'vacancies' in initial_charges.keys():
+                        if vac_symbol in initial_charges['vacancies']: #NOTE this might get problematic if more than one type of vacancy?
+                            charges = initial_charges['vacancies'][vac_symbol]
 
                 if not len(charges):
-                    charges = []
                     SCG = SimpleChargeGenerator(vac)
                     charges = [v.charge for v in SCG]
 
@@ -256,6 +256,7 @@ class DefectSetupFiretask(FiretaskBase):
         else:
             #TODO: need to make an option for manual input of vacancy types desired...
             print('nope')
+            raise ValueError("DANNY DOESNT KNOW HOW TO DO THIS YET...")
 
 
 
@@ -284,9 +285,27 @@ class DefectSetupFiretask(FiretaskBase):
                         charges = []
                         #TODO: do BV method for charge generation?
 
+
+                    charges = []
+                    if initial_charges:
+                        if 'substitutions' in initial_charges.keys():
+                            if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of antisite?
+                                if sub_symbol in initial_charges['substitutions'][vac_symbol]:
+                                    charges = initial_charges['substitutions'][vac_symbol][sub_symbol]
+
+                    if not len(charges):
+                        SCG = SimpleChargeGenerator(sub)
+                        charges = [v.charge for v in SCG]
+
+
+
                     def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
                                         'site_multiplicity': site_mult, 'structure': dstruct})
 
+        else:
+            #TODO: need to make an option for manual input of antisite types desired...
+            print('nope')
+            raise ValueError("DANNY DOESNT KNOW HOW TO DO THIS YET...")
 
         if substitutions:
             #do substitutions set up method....
@@ -308,25 +327,62 @@ class DefectSetupFiretask(FiretaskBase):
                                      ['ReplaceSiteSpeciesTransformation', {'indices_species_map':
                                                                                {defindex: sub_symbol}}]]
 
-                        if initial_charges['substitutions']:
-                            #TODO: how to interpret input initial charges???
-                            raise ValueError("DANNY DOESNT KNOW HOW TO DO THIS YET...")
-                        else:
-                            charges = []
-                            #TODO: do BV method for charge generation?
+                        charges = []
+                        if initial_charges:
+                            if 'substitutions' in initial_charges.keys():
+                                if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of sub?
+                                    if sub_symbol in initial_charges['substitutions'][vac_symbol]:
+                                        charges = initial_charges['substitutions'][vac_symbol][sub_symbol]
+
+                        if not len(charges):
+                            SCG = SimpleChargeGenerator(sub)
+                            charges = [v.charge for v in SCG]
+
 
                         def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
                                             'site_multiplicity': site_mult, 'structure': dstruct})
 
 
         if interstitials:
-            #TODO: need to make an option for manual input of interstitials types desired...
+            #TODO: need to make an option for manual input of interstitials sites desired...
             #
             #     deftrans.append( 'InsertSitesTransformation')
             #     deftrans_params.append( {'species': [defsite.specie.symbol],
             #                             'coords': [defsite.frac_coords],
             #                             'coords_are_cartesian': False} )
-            print('nope')
+            # print('nope')
+
+            #FOR NOW just using simple interstitial generation method...
+            #do interstitials set up method....
+            copied_sc_structure = bulk_supercell.copy()
+            for elt_type in interstitials: #RIGHT now -> interstitials is a list of pymatgen element types?
+                IG = VoronoiInterstitialGenerator(copied_sc_structure, elt_type)
+                # IG = InterstitialGenerator(copied_sc_structure, sub_elt)
+                for inter_ind, inter in enumerate(IG):
+                    def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type.symbol)
+                    dstruct = inter.generate_defect_structure()
+                    site_mult = inter.multiplicity
+                    transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
+                                 ['InsertSitesTransformation', {'species': [inter.site.specie.symbol],
+                                                                'coords': [inter.site.frac_coords],
+                                                                'coords_are_cartesian': False} ]]
+
+                    charges = []
+                    if initial_charges:
+                        if 'interstitials' in initial_charges.keys():
+                            if elt_type in initial_charges['interstitials']: #NOTE this might get problematic if more than one type of sub?
+                                charges = initial_charges['interstitials'][elt_type]
+
+                    if not len(charges):
+                        SCG = SimpleChargeGenerator(inter)
+                        charges = [v.charge for v in SCG]
+
+
+                    def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
+                                        'site_multiplicity': site_mult, 'structure': dstruct})
+
+
+
 
 
         stdrd_defect_incar_settings = {"EDIFF":.0001, "EDIFFG":0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05,
