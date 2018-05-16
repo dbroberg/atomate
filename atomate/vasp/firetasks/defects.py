@@ -415,7 +415,7 @@ class DefectSetupFiretask(FiretaskBase):
                                                     charge, num_atoms)
 
                 #storing multiplicity for this sized cell in metadata for parsing purposes later on...
-                metadata['metadata']['multiplicities'][def_tag] = defcalc['site_multiplicity']
+                metadata['multiplicities'][def_tag] = defcalc['site_multiplicity']
 
                 fw = TransmuterFW(name = def_tag, structure=structure,
                                        transformations=chgdeftrans,
