@@ -22,10 +22,12 @@ import numpy as np
 from monty.json import jsanitize
 
 from pymatgen.io.vasp import Vasprun, Locpot, Poscar
-from pymatgen.matproj.rest import MPRester
-from pymatgen.io.vasp.sets import MPStaticSet
+from pymatgen import MPRester
+from pymatgen.io.vasp.sets import MPStaticSet, MPRelaxSet
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.entries.computed_entries import ComputedStructureEntry
+from pymatgen.analysis.defects.generators import VacancyGenerator, SubstitutionGenerator, \
+    InterstitialGenerator, VoronoiInterstitialGenerator, SimpleChargeGenerator
 
 from fireworks import FiretaskBase, FWAction, explicit_serialize
 
@@ -44,6 +46,61 @@ from monty.json import MontyEncoder
 
 logger = get_logger(__name__)
 
+def optimize_structure_sc_scale(inp_struct, final_site_no):
+    """
+    A function for optimizing bulk structure size
+    (note this copies a function from pycdt.core.defectsmaker)
+
+    TODO: clean this function up to be prettier / make more sense
+    TODO: have an option for supercell scaling in a way besides cubic scaling...
+    """
+    if final_site_no < len(inp_struct.sites):
+        final_site_no = len(inp_struct.sites)
+
+    dictio={}
+    for k1 in range(1,6):
+        for k2 in range(1,6):
+            for k3 in range(1,6):
+                struct = inp_struct.copy()
+                struct.make_supercell([k1, k2, k3])
+                if len(struct.sites) > final_site_no:
+                    continue
+
+                min_dist = 1000.0
+                for a in range(-1,2):
+                    for b in range(-1,2):
+                        for c in range(-1,2):
+                            try:
+                                distance = struct.get_distance(0, 0, (a,b,c))
+                            except:
+                                print (a, b, c)
+                                raise
+                            if  distance < min_dist and distance>0.00001:
+                                min_dist = distance
+                min_dist = round(min_dist, 3)
+                if min_dist in dictio:
+                    if dictio[min_dist]['num_sites'] > struct.num_sites:
+                        dictio[min_dist]['num_sites'] = struct.num_sites
+                        dictio[min_dist]['supercell'] = [k1,k2,k3]
+                else:
+                    dictio[min_dist]={}
+                    dictio[min_dist]['num_sites'] = struct.num_sites
+                    dictio[min_dist]['supercell'] = [k1,k2,k3]
+    min_dist = -1.0
+    biggest = None
+    for c in dictio:
+        if c > min_dist:
+            biggest = dictio[c]['supercell']
+            min_dist = c
+    if biggest is None or min_dist < 0.0:
+        raise RuntimeError('could not find any supercell scaling vector')
+    return biggest
+
+
+
+
+
+
 @explicit_serialize
 class DefectSetupFiretask(FiretaskBase):
     """
@@ -52,44 +109,63 @@ class DefectSetupFiretask(FiretaskBase):
     Args:
         structure (Structure): input structure to have defects run on
         cellmax (int): maximum supercell size to consider for supercells
-        max_min_oxi (dict):
-            The minimal and maximum oxidation state of each element as a
-            dict. For instance {"O":(-2,0)}. If not given, the oxi-states
-            of pymatgen are considered.
-        oxi_states (dict):
-            The oxidation state of the elements in the compound e.g.
-            {"Fe":2,"O":-2}. If not given, the oxidation state of each
-            site is computed with bond valence sum. WARNING: Bond-valence
-            method can fail for mixed-valence compounds.
-        antisites_flag (bool):
-            If False, don't generate antisites.
-        substitutions (dict):
-            The allowed substitutions of elements as a dict. If not given,
-            intrinsic defects are computed. If given, intrinsic (e.g.,
-            anti-sites) and extrinsic are considered explicitly specified.
-            Example: {"Co":["Zn","Mn"]} means Co sites can be substituted
-            by Mn or Zn.
-        include_interstitials (bool):
-            If true, do generate interstitial defect configurations
-            defaults to False.
-        interstitial_elements ([str]):
-            List of strings containing symbols of the elements that are
-            to be considered for interstitial sites.  The default is an
-            empty list, which triggers self-interstitial generation,
-            given that include_interstitials is True.
-        struct_type (string):
-            This is a predefined 'charging' scheme for the defects. 
-            Some pre-defined options are 'semiconductor', 'insulator', 
-            'manual', and 'ionic'. Detailed code for this can be found 
-            in pycdt.core.defectsmaker. Default is 'semiconductor'.
         conventional (bool):
             flag to use conventional structure (rather than primitive) for supercells,
             defaults to True.
-
-        vasp_cmd (string): 
+        vasp_cmd (string):
             the vasp cmd
         db_file (string):
             the db file
+
+        TODO (for all below readme lists = keep up to date wiht whatever I have listed in atomate.vasp.workflows.base.chgdefects)
+        vacancies (list):
+            If nothing specified, all vacancies are considered.
+            TODO: if more specificity is supplied then limit number of defects created (probably load vacancy pymatgen type)
+        antisites (bool):
+            If nothing specified, all antisites are considered.
+            TODO: if more specificity is supplied then limit number of defects created (probably load Substitution pymatgen type)
+        substitutions (dict):
+            If nothing specified, NO extrinsic substitutions defects are considered, but ALL intrinsic (antisite) substitutions are considered (default).
+            IF substitutions desired then dict gives allowed substitutions:
+                Example: {"Co":["Zn","Mn"]} means Co sites (in bulk structure) can be substituted
+                by Zn or Mn.
+        interstitials (dict):
+            If nothing specified, NO interstitial defects are considered (default).
+            IF interstitials desired then dict gives allowed interstitials:
+                NOTE that two approaches to interstitial generation are available:
+                    Option 1 = Manual input of interstitial sites of interest.
+                    TODO: make this actually work
+                        This is given by the following dictionary type:
+                        Example: {<Site_object_1>: ["Zn"], <Site_object_2>: ["Zn","Mn"]}
+                         makes Zn interstitial sites on pymatgen site objects 1 and 2, and Mn interstitials on
+                         pymatgen site object 2
+                    Option 2 = Pymatgen interstital generation of interstitial sites
+                        This is given by the following dictionary type:
+                        Example: {"Zn": interstitial_generation_method_1}
+                         generates Zn interstitial sites using interstitial_generation_method_1 from pymatgen
+                        Options for interstitial generation are:  ????
+        initial_charges (dict):
+            says how to specify initial charges for each defect.
+            There are two approaches to charge generation available:
+                Option 1 = Manual input of charges of interest.
+                TODO: make this actually work
+                    This is given by the following dictionary type:
+                    Example: {????}
+                Option 2 = Pymatgen generation of charges
+                TODO: make this actually work
+                    This is given by the following dictionary type:
+                    Example: {"vacancies": {"Zn": charge_generation_method_1 }, ...}
+                        uses charge_generation_method_1 from pymatgen on Zn vacancies...
+            Default is to do a fairly restrictive charge generation method:
+                for vacancies: use bond valence method to assign oxidation states and consider
+                    negative of the vacant site's oxidation state as single charge to try
+                antisites and subs: use bond valence method to assign oxidation states and consider
+                    negative of the vacant site's oxidation state as single charge to try +
+                    added to likely charge of substitutional site (closest to zero)
+                interstitial: charge zero
+
+
+
     """
     def run_task(self, fw_spec):
         if os.path.exists("POSCAR"):
@@ -100,96 +176,202 @@ class DefectSetupFiretask(FiretaskBase):
         if self.get("conventional", True):
             structure = SpacegroupAnalyzer(structure).get_conventional_standard_structure()
 
-        #note that ChargedDefectsStructures runs the defectTransformation routines currently in pymatgen.transformations
-        def_structs = ChargedDefectsStructures( structure,
-                                                max_min_oxi=self.get("max_min_oxi", dict()),
-                                                oxi_states=self.get("oxi_states", dict()),
-                                                antisites_flag=self.get("antisites_flag", True),
-                                                substitutions=self.get("substitutions", dict()),
-                                                include_interstitials=self.get("include_interstitials", False),
-                                                interstitial_elements=self.get("interstitial_elements", list()),
-                                                cellmax=self.get("cellmax", 128),
-                                                struct_type=self.get("struct_type", "semiconductor"))
-
-
         fws, parents = [], []
 
+        cellmax=self.get("cellmax", 128)
+        sc_scale = optimize_structure_sc_scale(structure, cellmax)
+
         #First Firework is for bulk supercell
-        vis = MPStaticSet(def_structs.defects['bulk']['supercell']['structure'],
-            user_incar_settings = {"EDIFF":.0001, "EDIFFG": 0.001, "ISMEAR":0, "SIGMA":0.05, "NSW": 0, "ISIF": 2,
-                        "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LAECHG":False} )
+        bulk_supercell = structure.copy()
+        bulk_supercell.make_supercell(sc_scale)
+        num_atoms = len(bulk_supercell)
 
-        bulk_tag = "{}:bulk_supercell".format(structure.composition.reduced_formula)
+        bulk_incar_settings = {"EDIFF":.0001, "EDIFFG": 0.001, "ISMEAR":0, "SIGMA":0.05, "NSW": 0, "ISIF": 2,
+                               "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LAECHG":False}
+        vis = MPStaticSet(bulk_supercell, user_incar_settings =  bulk_incar_settings)
 
-        scale_super = def_structs.defects['bulk']['supercell']['size'] #this is just a len 3 array, for cubic supercells..
+        bulk_tag = "{}:bulk_supercell_{}".format(structure.composition.reduced_formula, num_atoms)
+
         #TODO: add ability to do transformation for more abstract supercell shapes...
-        supercell_size = scale_super * np.identity(3)
+        supercell_size = sc_scale * np.identity(3)
         stat_fw = TransmuterFW(name = bulk_tag, structure=structure,
                                transformations=['SupercellTransformation'],
                                transformation_params=[{"scaling_matrix": supercell_size}],
                                vasp_input_set=vis, copy_vasp_outputs=False, #structure already copied over...
                                vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
                                db_file=self.get("db_file", ">>db_file<<"))
-
         fws.append(stat_fw)
 
-        #iterate through defects+chgs and set up fireworks for them
-        stdrd_defect_incar_settings = {"EDIFF":.0001, "EDIFFG":0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05, # "NELM":50,
-                                       "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 100, "ISIF": 2, "LAECHG":False }
-        for def_type, deftypelist in def_structs.defects.items():
-            if def_type != 'bulk':
-                for defcalc in deftypelist:
-                    dstruct = defcalc['supercell']['structure']
-                    for charge in defcalc['charges']:
-                        defect_input_set = MPStaticSet(dstruct,user_incar_settings=stdrd_defect_incar_settings.copy())
-                        defect_input_set.user_incar_settings["NELECT"] = defect_input_set.nelect - charge
 
-                        #first scale in the same way as bulksupercell
-                        deftrans = ['SupercellTransformation']
-                        deftrans_params = [{"scaling_matrix": supercell_size}]
+        #Now make defect set
+        vacancies = self.get("vacancies", dict())
+        antisites = self.get("antisites", dict())
+        substitutions = self.get("substitutions", dict())
+        interstitials = self.get("interstitials", dict())
+        initial_charges  = self.get("initial_charges", dict())
 
-                        #then create defect
-                        defsite = defcalc['bulk_supercell_site']
-                        #small bit of code to determine potential defect index...
-                        ref_bulksupercel = def_structs.defects['bulk']['supercell']['structure']
-                        poss_deflist = ref_bulksupercel.get_sites_in_sphere(defsite.coords, 6, include_index=True)
-                        poss_defindex = poss_deflist[0][2] #index for defect (assuming vacancy or substitution...)
 
-                        if def_type == 'vacancies':
-                            deftrans.append( 'RemoveSitesTransformation')
-                            deftrans_params.append( {'indices_to_remove': [poss_defindex]})
-                        elif def_type == 'substitutions': #includes antisites..
-                            #TODO: needs to be tested for both antisites and subs...
-                            deftrans.append( 'ReplaceSiteSpeciesTransformation')
-                            deftrans_params.append( {'indices_species_map': {poss_defindex: defsite.specie.symbol}})
-                        elif def_type == 'interstitials':
-                            #TODO: needs to be tested ...
-                            deftrans.append( 'InsertSitesTransformation')
-                            deftrans_params.append( {'species': [defsite.specie.symbol],
-                                                    'coords': [defsite.frac_coords],
-                                                    'coords_are_cartesian': False} )
+        #track all defect_structures that will be setup/run
+        def_structs = []
+        #a list with following dict structure for each entry:
+        # {'structure': defective structure as supercell,
+        # 'charges': list of charges to run,
+        # 'transformations': list with pairs of [class for Transformation type, dict for transformation] to create defect (after supercell,
+        # 'name': base name (without charge) to be added to firework
+        # 'site_multiplicity': site multiplicity of defect AFTER full supercell transformation
+
+
+        #TODO for all defects belwo could also insert Transmuter for perturbating function / break local symmetry around defect
+        if not vacancies:
+            #do vacancy set up method...
+            copied_sc_structure = bulk_supercell.copy()
+            VG = VacancyGenerator(copied_sc_structure)
+
+            for vac_ind, vac in enumerate(VG):
+                vac_symbol = vac.site.specie.symbol
+                def_name = 'vac_{}_{}'.format(vac_ind+1, vac_symbol)
+                dstruct = vac.generate_defect_structure()
+                site_mult = vac.multiplicity
+
+                defindex = vac.bulk_structure.index(vac.site)
+
+                transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
+                             ['RemoveSitesTransformation', {'indices_to_remove': [defindex]}]]
+
+
+                charges = []
+                if initial_charges['vacancies']:
+                    if vac_symbol in initial_charges['vacancies']: #NOTE this might get problematic if more than one type of vacancy?
+                        charges = initial_charges['vacancies'][vac_symbol]
+
+                if not len(charges):
+                    charges = []
+                    SCG = SimpleChargeGenerator(vac)
+                    charges = [v.charge for v in SCG]
+
+                def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
+                                    'site_multiplicity': site_mult, 'structure': dstruct})
+
+
+        else:
+            #TODO: need to make an option for manual input of vacancy types desired...
+            print('nope')
+
+
+
+        if antisites:
+            #do substitutions set up method....
+            copied_sc_structure = bulk_supercell.copy()
+            for elt_type in set(bulk_supercell.types_of_specie):
+                SG = SubstitutionGenerator(copied_sc_structure, elt_type)
+                for as_ind, sub in enumerate(SG):
+                    sub_symbol = sub.name.split('_')[1]
+                    vac_symbol = sub.name.split('_')[3]
+                    def_name = 'as_{}_{}_on_{}'.format(as_ind+1, sub_symbol, vac_symbol)
+                    dstruct = sub.generate_defect_structure()
+                    site_mult = sub.multiplicity
+
+                    defindex = sub.bulk_structure.index(sub.site)
+
+                    transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
+                                 ['ReplaceSiteSpeciesTransformation', {'indices_species_map':
+                                                                           {defindex: sub_symbol}}]]
+
+                    if initial_charges['antisites']:
+                        #TODO: how to interpret input initial charges???
+                        raise ValueError("DANNY DOESNT KNOW HOW TO DO THIS YET...")
+                    else:
+                        charges = []
+                        #TODO: do BV method for charge generation?
+
+                    def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
+                                        'site_multiplicity': site_mult, 'structure': dstruct})
+
+
+        if substitutions:
+            #do substitutions set up method....
+            copied_sc_structure = bulk_supercell.copy()
+            for elt_type, list_for_subbing in substitutions:
+                for sub_elt in list_for_subbing:
+                    #sub_elt might need to be an Element type?
+                    SG = SubstitutionGenerator(copied_sc_structure, sub_elt)
+                    for sub_ind, sub in enumerate(SG):
+                        sub_symbol = sub.name.split('_')[1]
+                        vac_symbol = sub.name.split('_')[3]
+                        if vac_symbol != elt_type:
+                            continue
+                        def_name = 'sub_{}_{}_on_{}'.format(sub_ind+1, sub_symbol, sub_symbol)
+                        dstruct = sub.generate_defect_structure()
+                        site_mult = sub.multiplicity
+                        defindex = sub.bulk_structure.index(sub.site) #TODO: I dont think this will work??
+                        transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
+                                     ['ReplaceSiteSpeciesTransformation', {'indices_species_map':
+                                                                               {defindex: sub_symbol}}]]
+
+                        if initial_charges['substitutions']:
+                            #TODO: how to interpret input initial charges???
+                            raise ValueError("DANNY DOESNT KNOW HOW TO DO THIS YET...")
                         else:
-                            print('ERROR RAISED, def_type not recognized: ',def_type)
-                            #TODO: make this a legitimate error raiser
+                            charges = []
+                            #TODO: do BV method for charge generation?
 
-                        #TODO here could also insert Transmuter for perturbation function / breaking local symmetry around defect
+                        def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
+                                            'site_multiplicity': site_mult, 'structure': dstruct})
 
-                        #TODO: would be good to store site_multiplciity and defect bulk_supercell_site object for parsing later on...
-                        #           Maybe there could be a DefectEntry passed to database now which is modified during the Analyzer stage?
-                        #       defcalc['site_multiplicity'],   defsite
-                        def_tag = "{}:{}_{}".format(structure.composition.reduced_formula, defcalc['name'], charge)
-                        fw = TransmuterFW(name = def_tag, structure=structure,
-                                               transformations=deftrans,
-                                               transformation_params=deftrans_params,
-                                               vasp_input_set=defect_input_set,
-                                               vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
-                                               copy_vasp_outputs=False, #structure already copied over...
-                                               db_file=self.get("db_file", ">>db_file<<"))
-                        fws.append(fw)
 
-        # metadata = jsanitize(def_structs.defects, strict=True)
-        #TODO: could push metatdata of DefectEntry here...
-        return FWAction(detours=fws ) #, update_spec=metadata)
+        if interstitials:
+            #TODO: need to make an option for manual input of interstitials types desired...
+            #
+            #     deftrans.append( 'InsertSitesTransformation')
+            #     deftrans_params.append( {'species': [defsite.specie.symbol],
+            #                             'coords': [defsite.frac_coords],
+            #                             'coords_are_cartesian': False} )
+            print('nope')
+
+
+        stdrd_defect_incar_settings = {"EDIFF":.0001, "EDIFFG":0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05,
+                                       "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 100, "ISIF": 2,
+                                       "LAECHG":False }
+
+        metadata = {'multiplicities': {}}
+        for defcalc in def_structs:
+            # add transformation(s) for creating defect (make supercell then make defect; does not include charge transformation)
+            deftrans, deftrans_params = [], []
+            for defect_transformation, defect_trans_params in defcalc['transformations']:
+                deftrans.append( defect_transformation)
+                deftrans_params.append(defect_trans_params)
+
+            #iterate over all charges to be run now
+            for charge in defcalc['charges']:
+                #apply charge transformation
+                #NOTE that this charge transformation has no practical importance for incar...just stylistic?
+                chgdeftrans = deftrans[:]
+                chgdeftrans.append('ChargedCellTransformation')
+                chgdeftrans_params = deftrans_params[:]
+                chgdeftrans_params.append({"charge": charge})
+
+                #actually change NELECT incar settings...
+                dstruct = defcalc['structure'] #this is supercell structure
+                defect_input_set = MPRelaxSet(dstruct, user_incar_settings=stdrd_defect_incar_settings.copy())
+                defect_input_set.user_incar_settings["NELECT"] = defect_input_set.nelect - charge
+
+                def_tag = "{}:{}_{}_{}atoms".format(structure.composition.reduced_formula, defcalc['name'],
+                                                    charge, num_atoms)
+
+                #storing multiplicity for this sized cell in metadata for parsing purposes later on...
+                metadata['metadata']['multiplicities'][def_tag] = defcalc['site_multiplicity']
+
+                fw = TransmuterFW(name = def_tag, structure=structure,
+                                       transformations=chgdeftrans,
+                                       transformation_params=chgdeftrans_params,
+                                       vasp_input_set=defect_input_set,
+                                       vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
+                                       copy_vasp_outputs=False, #structure already copied over...
+                                       db_file=self.get("db_file", ">>db_file<<"))
+                fws.append(fw)
+
+
+        return FWAction(detours=fws, update_spec=metadata)
 
 
 @explicit_serialize
