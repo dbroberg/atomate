@@ -224,7 +224,7 @@ class DefectSetupFiretask(FiretaskBase):
         # 'site_multiplicity': site multiplicity of defect AFTER full supercell transformation
 
 
-        #TODO for all defects belwo could also insert Transmuter for perturbating function / break local symmetry around defect
+        #TODO for all defects below could also insert Transmuter for perturbating function / break local symmetry around defect
         if not vacancies:
             #do vacancy set up method...
             copied_sc_structure = bulk_supercell.copy()
@@ -306,7 +306,8 @@ class DefectSetupFiretask(FiretaskBase):
                     dstruct = sub.generate_defect_structure()
                     site_mult = sub.multiplicity
 
-                    defindex = sub.bulk_structure.index(sub.site)
+                    poss_deflist = sorted(sub.bulk_structure.get_sites_in_sphere(sub.site.coords, 2, include_index=True), key=lambda x: x[1])
+                    defindex = poss_deflist[0][2]
 
                     transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
                                  ['ReplaceSiteSpeciesTransformation', {'indices_species_map':
@@ -346,7 +347,8 @@ class DefectSetupFiretask(FiretaskBase):
                         dstruct = sub.generate_defect_structure()
                         site_mult = sub.multiplicity
 
-                        defindex = sub.bulk_structure.index(sub.site)
+                        poss_deflist = sorted(sub.bulk_structure.get_sites_in_sphere(sub.site.coords, 2, include_index=True), key=lambda x: x[1])
+                        defindex = poss_deflist[0][2]
 
                         transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
                                      ['ReplaceSiteSpeciesTransformation', {'indices_species_map':
