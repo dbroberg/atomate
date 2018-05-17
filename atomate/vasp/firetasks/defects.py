@@ -384,7 +384,7 @@ class DefectSetupFiretask(FiretaskBase):
                         #TODO: test this
                         IG = VoronoiInterstitialGenerator(copied_sc_structure, elt_type)
                         for inter_ind, inter in enumerate(IG):
-                            def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type.symbol)
+                            def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type)
                             dstruct = inter.generate_defect_structure()
                             site_mult = inter.multiplicity
                             transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
@@ -395,7 +395,7 @@ class DefectSetupFiretask(FiretaskBase):
                         #TODO: test this; ALSO -> should be done in the primitive structure??
                         IG = InterstitialGenerator(copied_sc_structure, elt_type)
                         for inter_ind, inter in enumerate(IG):
-                            def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type.symbol)
+                            def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type)
                             dstruct = inter.generate_defect_structure()
                             site_mult = inter.multiplicity
                             transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
@@ -405,7 +405,7 @@ class DefectSetupFiretask(FiretaskBase):
                 else: #this is full manual approach with interstitials
                     #TODO: test this
                     inter = elt_val
-                    def_name = 'inter_{}'.format( elt_type.symbol)
+                    def_name = 'inter_{}'.format( elt_type)
                     dstruct = inter.generate_defect_structure()
                     site_mult = inter.multiplicity
                     transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
