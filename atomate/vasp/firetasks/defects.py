@@ -244,7 +244,6 @@ class DefectSetupFiretask(FiretaskBase):
 
                 charges = []
                 if initial_charges:
-                    #TODO: test that manual charges approach actually works...
                     if 'vacancies' in initial_charges.keys():
                         if vac_symbol in initial_charges['vacancies']: #NOTE this might get problematic if more than one type of vacancy?
                             charges = initial_charges['vacancies'][vac_symbol]
@@ -258,7 +257,6 @@ class DefectSetupFiretask(FiretaskBase):
 
 
         else:
-            #TODO: test that this manual insertion approach actually works...
             for elt_type in vacancies:
                 copied_sc_structure = bulk_supercell.copy()
                 VG = VacancyGenerator(copied_sc_structure)
@@ -280,7 +278,6 @@ class DefectSetupFiretask(FiretaskBase):
 
                     charges = []
                     if initial_charges:
-                        #TODO: test that manual charges approach actually works...
                         if 'vacancies' in initial_charges.keys():
                             if vac_symbol in initial_charges['vacancies']: #NOTE this might get problematic if more than one type of vacancy?
                                 charges = initial_charges['vacancies'][vac_symbol]
@@ -456,8 +453,9 @@ class DefectSetupFiretask(FiretaskBase):
 
                 #actually change NELECT incar settings...
                 dstruct = defcalc['structure'] #this is supercell structure
+                dstruct.set_charge(charge) #NOTE that this will be reflected in charge of the MPRelaxSet's INCAR
                 defect_input_set = MPRelaxSet(dstruct, user_incar_settings=stdrd_defect_incar_settings.copy())
-                defect_input_set.user_incar_settings["NELECT"] = defect_input_set.nelect - charge
+                # defect_input_set.user_incar_settings["NELECT"] = defect_input_set.nelect - charge
 
                 def_tag = "{}:{}_{}_{}atoms".format(structure.composition.reduced_formula, defcalc['name'],
                                                     charge, num_atoms)
