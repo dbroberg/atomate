@@ -117,52 +117,56 @@ class DefectSetupFiretask(FiretaskBase):
         db_file (string):
             the db file
 
-        TODO (for all below readme lists = keep up to date wiht whatever I have listed in atomate.vasp.workflows.base.chgdefects)
+
         vacancies (list):
-            If nothing specified, all vacancies are considered.
-            TODO: if more specificity is supplied then limit number of defects created (probably load vacancy pymatgen type)
-        antisites (bool):
-            If nothing specified, all antisites are considered.
-            TODO: if more specificity is supplied then limit number of defects created (probably load Substitution pymatgen type)
+            If list is totally empty, all vacancies are considered (default).
+            If only specific vacancies are desired then add desired Element symbol to the list
+                ex. ['Ga'] in GaAs structure will only produce Galium vacancies
+
+            if NO vacancies are desired, then just add an empty list to the list
+                ex. [ [] ]  yields no vacancies
+
         substitutions (dict):
-            If nothing specified, NO extrinsic substitutions defects are considered, but ALL intrinsic (antisite) substitutions are considered (default).
-            IF substitutions desired then dict gives allowed substitutions:
-                Example: {"Co":["Zn","Mn"]} means Co sites (in bulk structure) can be substituted
-                by Zn or Mn.
-        interstitials (dict):
-            If nothing specified, NO interstitial defects are considered (default).
-            IF interstitials desired then dict gives allowed interstitials:
-                NOTE that two approaches to interstitial generation are available:
-                    Option 1 = Manual input of interstitial sites of interest.
-                    TODO: make this actually work
-                        This is given by the following dictionary type:
-                        Example: {<Site_object_1>: ["Zn"], <Site_object_2>: ["Zn","Mn"]}
-                         makes Zn interstitial sites on pymatgen site objects 1 and 2, and Mn interstitials on
-                         pymatgen site object 2
-                    Option 2 = Pymatgen interstital generation of interstitial sites
-                        This is given by the following dictionary type:
-                        Example: {"Zn": interstitial_generation_method_1}
-                         generates Zn interstitial sites using interstitial_generation_method_1 from pymatgen
-                        Options for interstitial generation are:  ????
+            If dict is totally empty, all intrinsic antisites are considered (default).
+            If only specific antisites/substituions are desired then add vacant site type as key, with list of
+                sub site symbol as value
+                    ex 1. {'Ga': ['As'] } in GaAs structure will only produce Arsenic_on_Gallium antisites
+                    ex 2. {'Ga': ['Sb'] } in GaAs structure will only produce Antimonide_on_Gallium substitutions
+
+            if NO antisites or substitutions are desired, then just add an empty dict
+                ex. {None:{}}  yields no antisites or subs
+
+
+        interstitials (list):
+            If list is totally empty, NO interstitial defects are considered (default).
+            Option 1 for generation: If one wants to use Pymatgen to predict interstitial
+                    then list of pairs of [symbol, generation method (str)] can be provided
+                        ex. ['Ga', 'Voronoi'] in GaAs structure will produce Galium interstitials from the
+                            Voronoi site finding algorithm
+                        NOTE: only options for interstitial generation are "Voronoi" and "Nils"
+            Option 2 for generation: If user wants to add their own interstitial sites for consideration
+                    the list of pairs of [symbol, Interstitial object] can be provided, where the
+                    Interstitial pymatgen.analysis.defects.core object is used to describe the defect of interest
+                    NOTE: use great caution with this approach. You better be sure that the supercell with Interstitial in it
+                        is same as the bulk supercell...
+
+
         initial_charges (dict):
             says how to specify initial charges for each defect.
-            There are two approaches to charge generation available:
-                Option 1 = Manual input of charges of interest.
-                TODO: make this actually work
-                    This is given by the following dictionary type:
-                    Example: {????}
-                Option 2 = Pymatgen generation of charges
-                TODO: make this actually work
-                    This is given by the following dictionary type:
-                    Example: {"vacancies": {"Zn": charge_generation_method_1 }, ...}
-                        uses charge_generation_method_1 from pymatgen on Zn vacancies...
-            Default is to do a fairly restrictive charge generation method:
+            An empty dict (DEFAULT) is to do a fairly restrictive charge generation method:
                 for vacancies: use bond valence method to assign oxidation states and consider
                     negative of the vacant site's oxidation state as single charge to try
                 antisites and subs: use bond valence method to assign oxidation states and consider
                     negative of the vacant site's oxidation state as single charge to try +
                     added to likely charge of substitutional site (closest to zero)
                 interstitial: charge zero
+            For non empty dict, charges are specified as:
+                initial_charges = {'vacancies': {'Ga': [-3,2,1,0]},
+                                   'substitutions': {'Ga': {'As': [0]} },
+                                   'interstitials': {}}
+                in the GaAs structure this makes vacancy charges in states -3,-2,-1,0; Ga_As antisites in the q=0 state,
+                and all other defects will have charges generated in the restrictive automated format stated for DEFAULT
+
 
 
 
@@ -204,10 +208,9 @@ class DefectSetupFiretask(FiretaskBase):
 
 
         #Now make defect set
-        vacancies = self.get("vacancies", dict())
-        antisites = self.get("antisites", dict())
+        vacancies = self.get("vacancies", list())
         substitutions = self.get("substitutions", dict())
-        interstitials = self.get("interstitials", dict())
+        interstitials = self.get("interstitials", list())
         initial_charges  = self.get("initial_charges", dict())
 
 
@@ -241,6 +244,7 @@ class DefectSetupFiretask(FiretaskBase):
 
                 charges = []
                 if initial_charges:
+                    #TODO: test that manual charges approach actually works...
                     if 'vacancies' in initial_charges.keys():
                         if vac_symbol in initial_charges['vacancies']: #NOTE this might get problematic if more than one type of vacancy?
                             charges = initial_charges['vacancies'][vac_symbol]
@@ -254,14 +258,44 @@ class DefectSetupFiretask(FiretaskBase):
 
 
         else:
-            #TODO: need to make an option for manual input of vacancy types desired...
-            print('nope')
-            raise ValueError("DANNY DOESNT KNOW HOW TO DO THIS YET...")
+            #TODO: test that this manual insertion approach actually works...
+            for elt_type in vacancies:
+                copied_sc_structure = bulk_supercell.copy()
+                VG = VacancyGenerator(copied_sc_structure)
+
+                for vac_ind, vac in enumerate(VG):
+                    vac_symbol = vac.site.specie.symbol
+                    if elt_type != vac_symbol:
+                        continue
+
+                    def_name = 'vac_{}_{}'.format(vac_ind+1, vac_symbol)
+                    dstruct = vac.generate_defect_structure()
+                    site_mult = vac.multiplicity
+
+                    defindex = vac.bulk_structure.index(vac.site)
+
+                    transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
+                                 ['RemoveSitesTransformation', {'indices_to_remove': [defindex]}]]
+
+
+                    charges = []
+                    if initial_charges:
+                        #TODO: test that manual charges approach actually works...
+                        if 'vacancies' in initial_charges.keys():
+                            if vac_symbol in initial_charges['vacancies']: #NOTE this might get problematic if more than one type of vacancy?
+                                charges = initial_charges['vacancies'][vac_symbol]
+
+                    if not len(charges):
+                        SCG = SimpleChargeGenerator(vac)
+                        charges = [v.charge for v in SCG]
+
+                    def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
+                                        'site_multiplicity': site_mult, 'structure': dstruct})
 
 
 
-        if antisites:
-            #do substitutions set up method....
+        if not substitutions:
+            #then do all intrinsic antisites set up as method....
             copied_sc_structure = bulk_supercell.copy()
             for elt_type in set(bulk_supercell.types_of_specie):
                 SG = SubstitutionGenerator(copied_sc_structure, elt_type)
@@ -278,16 +312,9 @@ class DefectSetupFiretask(FiretaskBase):
                                  ['ReplaceSiteSpeciesTransformation', {'indices_species_map':
                                                                            {defindex: sub_symbol}}]]
 
-                    if initial_charges['antisites']:
-                        #TODO: how to interpret input initial charges???
-                        raise ValueError("DANNY DOESNT KNOW HOW TO DO THIS YET...")
-                    else:
-                        charges = []
-                        #TODO: do BV method for charge generation?
-
-
                     charges = []
                     if initial_charges:
+                        #TODO: test that manual charges approach actually works...
                         if 'substitutions' in initial_charges.keys():
                             if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of antisite?
                                 if sub_symbol in initial_charges['substitutions'][vac_symbol]:
@@ -298,39 +325,39 @@ class DefectSetupFiretask(FiretaskBase):
                         charges = [v.charge for v in SCG]
 
 
-
                     def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
                                         'site_multiplicity': site_mult, 'structure': dstruct})
 
         else:
-            #TODO: need to make an option for manual input of antisite types desired...
-            print('nope')
-            raise ValueError("DANNY DOESNT KNOW HOW TO DO THIS YET...")
-
-        if substitutions:
-            #do substitutions set up method....
-            copied_sc_structure = bulk_supercell.copy()
-            for elt_type, list_for_subbing in substitutions:
-                for sub_elt in list_for_subbing:
-                    #sub_elt might need to be an Element type?
-                    SG = SubstitutionGenerator(copied_sc_structure, sub_elt)
-                    for sub_ind, sub in enumerate(SG):
-                        sub_symbol = sub.name.split('_')[1]
-                        vac_symbol = sub.name.split('_')[3]
-                        if vac_symbol != elt_type:
+            #TODO: test that this manual insertion approach actually works...
+            for vac_symbol, sub_list in substitutions.items():
+                for sub_symbol in sub_list:
+                    copied_sc_structure = bulk_supercell.copy()
+                    SG = SubstitutionGenerator(copied_sc_structure, sub_symbol)
+                    for as_ind, sub in enumerate(SG):
+                        if vac_symbol != sub.name.split('_')[3]: #only consider subs on vac_symbol site
                             continue
-                        def_name = 'sub_{}_{}_on_{}'.format(sub_ind+1, sub_symbol, sub_symbol)
+
+                        if sub.site.specie in copied_sc_structure.species:
+                            def_name = 'as_{}_{}_on_{}'.format(as_ind+1, sub_symbol, vac_symbol)
+                        else:
+                            def_name = 'sub_{}_{}_on_{}'.format(as_ind+1, sub_symbol, vac_symbol)
+
                         dstruct = sub.generate_defect_structure()
                         site_mult = sub.multiplicity
-                        defindex = sub.bulk_structure.index(sub.site) #TODO: I dont think this will work??
+
+                        defindex = sub.bulk_structure.index(sub.site)
+
                         transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
                                      ['ReplaceSiteSpeciesTransformation', {'indices_species_map':
                                                                                {defindex: sub_symbol}}]]
 
+
                         charges = []
                         if initial_charges:
+                            #TODO: test that manual charges approach actually works...
                             if 'substitutions' in initial_charges.keys():
-                                if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of sub?
+                                if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of antisite/sub?
                                     if sub_symbol in initial_charges['substitutions'][vac_symbol]:
                                         charges = initial_charges['substitutions'][vac_symbol][sub_symbol]
 
@@ -338,28 +365,45 @@ class DefectSetupFiretask(FiretaskBase):
                             SCG = SimpleChargeGenerator(sub)
                             charges = [v.charge for v in SCG]
 
-
                         def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
                                             'site_multiplicity': site_mult, 'structure': dstruct})
 
 
         if interstitials:
-            #TODO: need to make an option for manual input of interstitials sites desired...
-            #
-            #     deftrans.append( 'InsertSitesTransformation')
-            #     deftrans_params.append( {'species': [defsite.specie.symbol],
-            #                             'coords': [defsite.frac_coords],
-            #                             'coords_are_cartesian': False} )
-            # print('nope')
+            #BELOW is for time savings with site finding...
+            #TODO: make this work for time savings
+            voronoi_set = False
+            nils_set = False
 
-            #FOR NOW just using simple interstitial generation method...
-            #do interstitials set up method....
-            copied_sc_structure = bulk_supercell.copy()
-            for elt_type in interstitials: #RIGHT now -> interstitials is a list of pymatgen element types?
-                IG = VoronoiInterstitialGenerator(copied_sc_structure, elt_type)
-                # IG = InterstitialGenerator(copied_sc_structure, sub_elt)
-                for inter_ind, inter in enumerate(IG):
-                    def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type.symbol)
+            for elt_type, elt_val in interstitials:
+                if type(elt_val) == str:
+                    copied_sc_structure = bulk_supercell.copy()
+                    if elt_val == 'Voronoi':
+                        #TODO: test this
+                        IG = VoronoiInterstitialGenerator(copied_sc_structure, elt_type)
+                        for inter_ind, inter in enumerate(IG):
+                            def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type.symbol)
+                            dstruct = inter.generate_defect_structure()
+                            site_mult = inter.multiplicity
+                            transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
+                                         ['InsertSitesTransformation', {'species': [inter.site.specie.symbol],
+                                                                        'coords': [inter.site.frac_coords],
+                                                                        'coords_are_cartesian': False} ]]
+                    else:
+                        #TODO: test this; ALSO -> should be done in the primitive structure??
+                        IG = InterstitialGenerator(copied_sc_structure, elt_type)
+                        for inter_ind, inter in enumerate(IG):
+                            def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type.symbol)
+                            dstruct = inter.generate_defect_structure()
+                            site_mult = inter.multiplicity
+                            transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
+                                         ['InsertSitesTransformation', {'species': [inter.site.specie.symbol],
+                                                                        'coords': [inter.site.frac_coords],
+                                                                        'coords_are_cartesian': False} ]]
+                else: #this is full manual approach with interstitials
+                    #TODO: test this
+                    inter = elt_val
+                    def_name = 'inter_{}'.format( elt_type.symbol)
                     dstruct = inter.generate_defect_structure()
                     site_mult = inter.multiplicity
                     transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
@@ -367,19 +411,21 @@ class DefectSetupFiretask(FiretaskBase):
                                                                 'coords': [inter.site.frac_coords],
                                                                 'coords_are_cartesian': False} ]]
 
-                    charges = []
-                    if initial_charges:
-                        if 'interstitials' in initial_charges.keys():
-                            if elt_type in initial_charges['interstitials']: #NOTE this might get problematic if more than one type of sub?
-                                charges = initial_charges['interstitials'][elt_type]
 
-                    if not len(charges):
-                        SCG = SimpleChargeGenerator(inter)
-                        charges = [v.charge for v in SCG]
+                charges = []
+                if initial_charges:
+                    #TODO: test that manual charges approach actually works...
+                    if 'interstitials' in initial_charges.keys():
+                        if elt_type in initial_charges['interstitials']: #NOTE this might get problematic if more than one type of sub?
+                            charges = initial_charges['interstitials'][elt_type]
+
+                if not len(charges):
+                    SCG = SimpleChargeGenerator(inter)
+                    charges = [v.charge for v in SCG]
 
 
-                    def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
-                                        'site_multiplicity': site_mult, 'structure': dstruct})
+                def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
+                                    'site_multiplicity': site_mult, 'structure': dstruct})
 
 
 

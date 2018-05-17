@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings=None,
                         vasp_cmd=">>vasp_cmd<<", db_file=">>db_file<<",
                         conventional=True, diel_flag=True, n_max=128,
-                        vacancies={}, antisites={}, substitutions={}, interstitials={},
+                        vacancies=[], substitutions={}, interstitials={},
                         initial_charges={}, rerelax_flag=False, hybrid_flag=True,
                         run_analysis=False):
     """
@@ -57,54 +57,52 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings
             (required for charge corrections to be run) defaults to True.
         n_max (int): maximum supercell size to consider for supercells
 
-        vacancies (dict):
-            If nothing specified, all vacancies are considered.
-            TODO: if more specificity is supplied then limit number of defects created (probably load vacancy pymatgen type)
-        antisites (dict):
-            If nothing specified, all antisites are considered.
-            TODO: if more specificity is supplied then limit number of defects created (probably load Substitution pymatgen type)
+        vacancies (list):
+            If list is totally empty, all vacancies are considered (default).
+            If only specific vacancies are desired then add desired Element symbol to the list
+                ex. ['Ga'] in GaAs structure will only produce Galium vacancies
+
+            if NO vacancies are desired, then just add an empty list to the list
+                ex. [ [] ]  yields no vacancies
 
         substitutions (dict):
-            If nothing specified, NO substitutions defects are considered (default).
-            IF substitutions desired then dict gives allowed substitutions:
-                Example: {"Co":["Zn","Mn"]} means Co sites (in bulk structure) can be substituted
-                by Zn or Mn.
+            If dict is totally empty, all intrinsic antisites are considered (default).
+            If only specific antisites/substituions are desired then add vacant site type as key, with list of
+                sub site symbol as value
+                    ex 1. {'Ga': ['As'] } in GaAs structure will only produce Arsenic_on_Gallium antisites
+                    ex 2. {'Ga': ['Sb'] } in GaAs structure will only produce Antimonide_on_Gallium substitutions
 
-        interstitials (dict):
-            If nothing specified, NO interstitial defects are considered (default).
-            IF interstitials desired then dict gives allowed interstitials:
-                NOTE that two approaches to interstitial generation are available:
-                    Option 1 = Manual input of interstitial sites of interest.
-                    TODO: make this actually work
-                        This is given by the following dictionary type:
-                        Example: {<Site_object_1>: ["Zn"], <Site_object_2>: ["Zn","Mn"]}
-                         makes Zn interstitial sites on pymatgen site objects 1 and 2, and Mn interstitials on
-                         pymatgen site object 2
-                    Option 2 = Pymatgen interstital generation of interstitial sites
-                        This is given by the following dictionary type:
-                        Example: {"Zn": interstitial_generation_method_1}
-                         generates Zn interstitial sites using interstitial_generation_method_1 from pymatgen
-                        Options for interstitial generation are:  ????
+            if NO antisites or substitutions are desired, then just add an empty dict
+                ex. {None:{}}  yields no antisites or subs
+
+
+        interstitials (list):
+            If list is totally empty, NO interstitial defects are considered (default).
+            Option 1 for generation: If one wants to use Pymatgen to predict interstitial
+                    then list of pairs of [symbol, generation method (str)] can be provided
+                        ex. ['Ga', 'Voronoi'] in GaAs structure will produce Galium interstitials from the
+                            Voronoi site finding algorithm
+                        NOTE: only options for interstitial generation are "Voronoi" and "Nils"
+            Option 2 for generation: If user wants to add their own interstitial sites for consideration
+                    the list of pairs of [symbol, Interstitial object] can be provided, where the
+                    Interstitial pymatgen.analysis.defects.core object is used to describe the defect of interest
+
 
         initial_charges (dict):
             says how to specify initial charges for each defect.
-            There are two approaches to charge generation available:
-                Option 1 = Manual input of charges of interest.
-                TODO: make this actually work
-                    This is given by the following dictionary type:
-                    Example: {????}
-                Option 2 = Pymatgen generation of charges
-                TODO: make this actually work
-                    This is given by the following dictionary type:
-                    Example: {"vacancies": {"Zn": charge_generation_method_1 }, ...}
-                        uses charge_generation_method_1 from pymatgen on Zn vacancies...
-            Default is to do a fairly restrictive charge generation method:
+            An empty dict (DEFAULT) is to do a fairly restrictive charge generation method:
                 for vacancies: use bond valence method to assign oxidation states and consider
                     negative of the vacant site's oxidation state as single charge to try
                 antisites and subs: use bond valence method to assign oxidation states and consider
                     negative of the vacant site's oxidation state as single charge to try +
                     added to likely charge of substitutional site (closest to zero)
                 interstitial: charge zero
+            For non empty dict, charges are specified as:
+                initial_charges = {'vacancies': {'Ga': [-3,2,1,0]},
+                                   'substitutions': {'Ga': {'As': [0]} },
+                                   'interstitials': {}}
+                in the GaAs structure this makes vacancy charges in states -3,-2,-1,0; Ga_As antisites in the q=0 state,
+                and all other defects will have charges generated in the restrictive automated format stated for DEFAULT
 
         rerelax_flag (bool):
             Flag to re-relax the input structure for minimizing forces 
@@ -160,7 +158,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings
 
     t.append(DefectSetupFiretask(structure=prim_structure, cellmax=n_max, conventional=conventional,
                                  vasp_cmd=vasp_cmd, db_file=db_file,
-                                 vacancies=vacancies, antisites=antisites, substitutions=substitutions,
+                                 vacancies=vacancies, substitutions=substitutions,
                                  interstitials=interstitials, initial_charges=initial_charges))
 
     setup_fw = Firework(t,parents = parents, name="{} Defect Supercell Setup".format(structure.composition.reduced_formula))
