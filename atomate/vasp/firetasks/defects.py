@@ -194,7 +194,7 @@ class DefectSetupFiretask(FiretaskBase):
                                "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LAECHG":False}
         vis = MPStaticSet(bulk_supercell, user_incar_settings =  bulk_incar_settings)
 
-        bulk_tag = "{}:bulk_supercell_{}".format(structure.composition.reduced_formula, num_atoms)
+        bulk_tag = "{}:bulk_supercell_{}atoms".format(structure.composition.reduced_formula, num_atoms)
 
         #TODO: add ability to do transformation for more abstract supercell shapes...
         supercell_size = sc_scale * np.identity(3)
