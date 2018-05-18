@@ -226,21 +226,12 @@ class DefectSetupFiretask(FiretaskBase):
 
         #TODO for all defects below could also insert Transmuter for perturbating function / break local symmetry around defect
         if not vacancies:
-            #do vacancy set up method...
-            copied_sc_structure = bulk_supercell.copy()
-            VG = VacancyGenerator(copied_sc_structure)
-
+            #make all vacancies...
+            b_struct = structure.copy()
+            VG = VacancyGenerator(b_struct)
             for vac_ind, vac in enumerate(VG):
                 vac_symbol = vac.site.specie.symbol
                 def_name = 'vac_{}_{}'.format(vac_ind+1, vac_symbol)
-                dstruct = vac.generate_defect_structure()
-                site_mult = vac.multiplicity
-
-                defindex = vac.bulk_structure.index(vac.site)
-
-                transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
-                             ['RemoveSitesTransformation', {'indices_to_remove': [defindex]}]]
-
 
                 charges = []
                 if initial_charges:
@@ -249,32 +240,22 @@ class DefectSetupFiretask(FiretaskBase):
                             charges = initial_charges['vacancies'][vac_symbol]
 
                 if not len(charges):
-                    SCG = SimpleChargeGenerator(vac)
+                    SCG = SimpleChargeGenerator(vac.copy())
                     charges = [v.charge for v in SCG]
 
-                def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
-                                    'site_multiplicity': site_mult, 'structure': dstruct})
-
+                def_structs.append({'name': def_name, 'charges': charges, 'defect': vac.copy()})
 
         else:
+            #only make vacancies of interest...
             for elt_type in vacancies:
-                copied_sc_structure = bulk_supercell.copy()
-                VG = VacancyGenerator(copied_sc_structure)
-
+                b_struct = structure.copy()
+                VG = VacancyGenerator(b_struct)
                 for vac_ind, vac in enumerate(VG):
                     vac_symbol = vac.site.specie.symbol
                     if elt_type != vac_symbol:
                         continue
 
                     def_name = 'vac_{}_{}'.format(vac_ind+1, vac_symbol)
-                    dstruct = vac.generate_defect_structure()
-                    site_mult = vac.multiplicity
-
-                    defindex = vac.bulk_structure.index(vac.site)
-
-                    transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
-                                 ['RemoveSitesTransformation', {'indices_to_remove': [defindex]}]]
-
 
                     charges = []
                     if initial_charges:
@@ -283,197 +264,143 @@ class DefectSetupFiretask(FiretaskBase):
                                 charges = initial_charges['vacancies'][vac_symbol]
 
                     if not len(charges):
-                        SCG = SimpleChargeGenerator(vac)
+                        SCG = SimpleChargeGenerator(vac.copy())
                         charges = [v.charge for v in SCG]
 
-                    def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
-                                        'site_multiplicity': site_mult, 'structure': dstruct})
-
+                    def_structs.append({'name': def_name, 'charges': charges, 'defect': vac.copy()})
 
 
         if not substitutions:
-            #then do all intrinsic antisites set up as method....
-            copied_sc_structure = bulk_supercell.copy()
-            for elt_type in set(bulk_supercell.types_of_specie):
-                SG = SubstitutionGenerator(copied_sc_structure, elt_type)
+            #then setting up all intrinsic antisites method....
+            for sub_symbol in set(bulk_supercell.types_of_specie):
+                b_struct = structure.copy()
+                SG = SubstitutionGenerator(b_struct, sub_symbol)
                 for as_ind, sub in enumerate(SG):
-                    sub_symbol = sub.name.split('_')[1]
-                    vac_symbol = sub.name.split('_')[3]
-                    def_name = 'as_{}_{}_on_{}'.format(as_ind+1, sub_symbol, vac_symbol)
-                    dstruct = sub.generate_defect_structure()
-                    site_mult = sub.multiplicity
-
+                    #find vac_symbol to correctly label defect
                     poss_deflist = sorted(sub.bulk_structure.get_sites_in_sphere(sub.site.coords, 2, include_index=True), key=lambda x: x[1])
                     defindex = poss_deflist[0][2]
 
-                    transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
-                                 ['ReplaceSiteSpeciesTransformation', {'indices_species_map':
-                                                                           {defindex: sub_symbol}}]]
+                    vac_symbol = sub.bulk_structure[defindex].specie.symbol
+                    def_name = 'as_{}_{}_on_{}'.format(as_ind+1, sub_symbol, vac_symbol)
 
                     charges = []
                     if initial_charges:
-                        #TODO: test that manual charges approach actually works...
                         if 'substitutions' in initial_charges.keys():
                             if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of antisite?
                                 if sub_symbol in initial_charges['substitutions'][vac_symbol]:
                                     charges = initial_charges['substitutions'][vac_symbol][sub_symbol]
 
                     if not len(charges):
-                        SCG = SimpleChargeGenerator(sub)
+                        SCG = SimpleChargeGenerator(sub.copy())
                         charges = [v.charge for v in SCG]
 
-
-                    def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
-                                        'site_multiplicity': site_mult, 'structure': dstruct})
-
+                    def_structs.append({'name': def_name, 'charges': charges, 'defect': vac.copy()})
         else:
-            #TODO: test that this manual insertion approach actually works...
+            #setting up specfied antisite / sub types
             for vac_symbol, sub_list in substitutions.items():
                 for sub_symbol in sub_list:
-                    copied_sc_structure = bulk_supercell.copy()
-                    SG = SubstitutionGenerator(copied_sc_structure, sub_symbol)
+                    b_struct = structure.copy()
+                    SG = SubstitutionGenerator(b_struct, sub_symbol)
                     for as_ind, sub in enumerate(SG):
-                        if vac_symbol != sub.name.split('_')[3]: #only consider subs on vac_symbol site
+                        #find vac_symbol for this sub defect
+                        poss_deflist = sorted(sub.bulk_structure.get_sites_in_sphere(sub.site.coords, 2, include_index=True), key=lambda x: x[1])
+                        defindex = poss_deflist[0][2]
+                        gen_vac_symbol = sub.bulk_structure[defindex].specie.symbol
+
+                        if vac_symbol != gen_vac_symbol: #only consider subs on specfied vac_symbol site
                             continue
 
-                        if sub.site.specie in copied_sc_structure.species:
+                        if sub_symbol in [spec.symbol for spec in b_struct.species]:
                             def_name = 'as_{}_{}_on_{}'.format(as_ind+1, sub_symbol, vac_symbol)
                         else:
                             def_name = 'sub_{}_{}_on_{}'.format(as_ind+1, sub_symbol, vac_symbol)
 
-                        dstruct = sub.generate_defect_structure()
-                        site_mult = sub.multiplicity
-
-                        poss_deflist = sorted(sub.bulk_structure.get_sites_in_sphere(sub.site.coords, 2, include_index=True), key=lambda x: x[1])
-                        defindex = poss_deflist[0][2]
-
-                        transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
-                                     ['ReplaceSiteSpeciesTransformation', {'indices_species_map':
-                                                                               {defindex: sub_symbol}}]]
-
-
                         charges = []
                         if initial_charges:
-                            #TODO: test that manual charges approach actually works...
                             if 'substitutions' in initial_charges.keys():
-                                if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of antisite/sub?
+                                if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of antisite?
                                     if sub_symbol in initial_charges['substitutions'][vac_symbol]:
                                         charges = initial_charges['substitutions'][vac_symbol][sub_symbol]
 
                         if not len(charges):
-                            SCG = SimpleChargeGenerator(sub)
+                            SCG = SimpleChargeGenerator(sub.copy())
                             charges = [v.charge for v in SCG]
 
-                        def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
-                                            'site_multiplicity': site_mult, 'structure': dstruct})
+                        def_structs.append({'name': def_name, 'charges': charges, 'defect': vac.copy()})
 
 
         if interstitials:
-            #BELOW is for time savings with site finding...
+            #for time savings with site finding...
             #TODO: make this work for time savings
             voronoi_set = False
             nils_set = False
 
+            def get_charges_from_inter( inter_obj):
+                inter_charges = []
+                if initial_charges:
+                    #TODO: test that manual charges approach actually works...
+                    if 'interstitials' in initial_charges.keys():
+                        if elt_type in initial_charges['interstitials']: #NOTE this might get problematic if more than one type of interstit?
+                            inter_charges = initial_charges['interstitials'][elt_type]
+
+                if not len(inter_charges):
+                    SCG = SimpleChargeGenerator(inter_obj)
+                    inter_charges = [v.charge for v in SCG]
+                return inter_charges
+
             for elt_type, elt_val in interstitials:
                 if type(elt_val) == str:
-                    copied_sc_structure = bulk_supercell.copy()
+                    b_struct = structure.copy()
                     if elt_val == 'Voronoi':
-                        #TODO: test this
-                        IG = VoronoiInterstitialGenerator(copied_sc_structure, elt_type)
-                        for inter_ind, inter in enumerate(IG):
-                            def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type)
-                            dstruct = inter.generate_defect_structure()
-                            site_mult = inter.multiplicity
-                            transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
-                                         ['InsertSitesTransformation', {'species': [inter.site.specie.symbol],
-                                                                        'coords': [inter.site.frac_coords],
-                                                                        'coords_are_cartesian': False} ]]
+                        IG = VoronoiInterstitialGenerator(b_struct, elt_type)
                     else:
-                        #TODO: test this; ALSO -> should be done in the primitive structure??
-                        IG = InterstitialGenerator(copied_sc_structure, elt_type)
-                        for inter_ind, inter in enumerate(IG):
-                            def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type)
-                            dstruct = inter.generate_defect_structure()
-                            site_mult = inter.multiplicity
-                            transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
-                                         ['InsertSitesTransformation', {'species': [inter.site.specie.symbol],
-                                                                        'coords': [inter.site.frac_coords],
-                                                                        'coords_are_cartesian': False} ]]
+                        #TODO: test this works
+                        IG = InterstitialGenerator(b_struct, elt_type)
+
+                    for inter_ind, inter in enumerate(IG):
+                        def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type)
+                        charges = get_charges_from_inter( inter)
+                        def_structs.append({'name': def_name, 'charges': charges, 'defect': inter.copy()})
                 else: #this is full manual approach with interstitials
                     #TODO: test this
                     inter = elt_val
                     def_name = 'inter_{}'.format( elt_type)
-                    dstruct = inter.generate_defect_structure()
-                    site_mult = inter.multiplicity
-                    transform = [['SupercellTransformation', {"scaling_matrix": supercell_size}],
-                                 ['InsertSitesTransformation', {'species': [inter.site.specie.symbol],
-                                                                'coords': [inter.site.frac_coords],
-                                                                'coords_are_cartesian': False} ]]
-
-
-                charges = []
-                if initial_charges:
-                    #TODO: test that manual charges approach actually works...
-                    if 'interstitials' in initial_charges.keys():
-                        if elt_type in initial_charges['interstitials']: #NOTE this might get problematic if more than one type of sub?
-                            charges = initial_charges['interstitials'][elt_type]
-
-                if not len(charges):
-                    SCG = SimpleChargeGenerator(inter)
-                    charges = [v.charge for v in SCG]
-
-
-                def_structs.append({'name': def_name, 'transformations': transform, 'charges': charges,
-                                    'site_multiplicity': site_mult, 'structure': dstruct})
-
-
-
+                    charges = get_charges_from_inter( inter)
+                    def_structs.append({'name': def_name, 'charges': charges, 'defect': inter.copy()})
 
 
         stdrd_defect_incar_settings = {"EDIFF":.0001, "EDIFFG":0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05,
                                        "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 100, "ISIF": 2,
                                        "LAECHG":False }
 
-        metadata = {'multiplicities': {}}
         for defcalc in def_structs:
-            # add transformation(s) for creating defect (make supercell then make defect; does not include charge transformation)
-            deftrans, deftrans_params = [], []
-            for defect_transformation, defect_trans_params in defcalc['transformations']:
-                deftrans.append( defect_transformation)
-                deftrans_params.append(defect_trans_params)
-
-            #iterate over all charges to be run now
+            defect = defcalc['defect'].copy()
+            defect_sc = defect.generate_defect_structure(supercell = sc_scale)
+            #iterate over all charges to be run
             for charge in defcalc['charges']:
-                #apply charge transformation
-                #NOTE that this charge transformation has no practical importance for incar...just stylistic?
-                chgdeftrans = deftrans[:]
-                chgdeftrans.append('ChargedCellTransformation')
-                chgdeftrans_params = deftrans_params[:]
-                chgdeftrans_params.append({"charge": charge})
-
-                #actually change NELECT incar settings...
-                dstruct = defcalc['structure'] #this is supercell structure
-                dstruct.set_charge(charge) #NOTE that this will be reflected in charge of the MPRelaxSet's INCAR
-                defect_input_set = MPRelaxSet(dstruct, user_incar_settings=stdrd_defect_incar_settings.copy())
-                # defect_input_set.user_incar_settings["NELECT"] = defect_input_set.nelect - charge
+                chgdstruct = defect_sc.copy()
+                chgdstruct.set_charge(charge)  #NOTE that the charge will be reflected in charge of the MPRelaxSet's INCAR
+                defect_input_set = MPRelaxSet(chgdstruct, user_incar_settings=stdrd_defect_incar_settings.copy())
 
                 def_tag = "{}:{}_{}_{}atoms".format(structure.composition.reduced_formula, defcalc['name'],
                                                     charge, num_atoms)
 
-                #storing multiplicity for this sized cell in metadata for parsing purposes later on...
-                metadata['multiplicities'][def_tag] = defcalc['site_multiplicity']
+                defect_for_trans_param = defect.copy()
+                defect_for_trans_param.set_charge(charge)
+                chgdef_trans = ["DefectTransformation"]
+                chgdef_trans_params = [{"scaling_matrix": sc_scale,
+                                        "defect": defect_for_trans_param}]
 
                 fw = TransmuterFW(name = def_tag, structure=structure,
-                                       transformations=chgdeftrans,
-                                       transformation_params=chgdeftrans_params,
+                                       transformations=chgdef_trans,
+                                       transformation_params=chgdef_trans_params,
                                        vasp_input_set=defect_input_set,
                                        vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
-                                       copy_vasp_outputs=False, #structure already copied over...
+                                       copy_vasp_outputs=False,
                                        db_file=self.get("db_file", ">>db_file<<"))
                 fws.append(fw)
 
-
-        return FWAction(detours=fws, update_spec=metadata)
+        return FWAction(detours=fws)
 
 
 @explicit_serialize
