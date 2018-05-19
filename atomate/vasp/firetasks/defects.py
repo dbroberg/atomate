@@ -294,7 +294,7 @@ class DefectSetupFiretask(FiretaskBase):
                         SCG = SimpleChargeGenerator(sub.copy())
                         charges = [v.charge for v in SCG]
 
-                    def_structs.append({'name': def_name, 'charges': charges, 'defect': vac.copy()})
+                    def_structs.append({'name': def_name, 'charges': charges, 'defect': sub.copy()})
         else:
             #setting up specfied antisite / sub types
             for vac_symbol, sub_list in substitutions.items():
@@ -326,7 +326,7 @@ class DefectSetupFiretask(FiretaskBase):
                             SCG = SimpleChargeGenerator(sub.copy())
                             charges = [v.charge for v in SCG]
 
-                        def_structs.append({'name': def_name, 'charges': charges, 'defect': vac.copy()})
+                        def_structs.append({'name': def_name, 'charges': charges, 'defect': sub.copy()})
 
 
         if interstitials:
