@@ -136,14 +136,14 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings
         fws.append(rerelax_fw)
         parents = [rerelax_fw]
         if hybrid_flag: #only run HSEBSFW hybrid workflow here if re-relaxed since it requires a copy-over optimized structure
-            hse_fw = HSEBSFW(prim_structure, parents, vasp_cmd=vasp_cmd, db_file=db_file)
+            hse_fw = HSEBSFW(structure=prim_structure, parents=parents, name="hse", vasp_cmd=vasp_cmd, db_file=db_file)
             fws.append( hse_fw)
 
     elif hybrid_flag: #if not re-relaxing structure but want hybrid then need to run a static primitive struct calc initial
         stat_gap_fw = StaticFW(prim_structure, name="{} gap gga initialize".format(structure.composition.reduced_formula),
                                 vasp_cmd=vasp_cmd, db_file=db_file)
         fws.append( stat_gap_fw)
-        hse_fw = HSEBSFW(prim_structure, stat_gap_fw, vasp_cmd=vasp_cmd, db_file=db_file)
+        hse_fw = HSEBSFW(structure=prim_structure, parents=stat_gap_fw, name="hse", vasp_cmd=vasp_cmd, db_file=db_file)
         fws.append( hse_fw)
 
     if diel_flag:
