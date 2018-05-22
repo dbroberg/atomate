@@ -140,7 +140,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings
             fws.append( hse_fw)
 
     elif hybrid_flag: #if not re-relaxing structure but want hybrid then need to run a static primitive struct calc initial
-        stat_gap_fw = StaticFW(prim_structure, name="{} gap gga initialize".format(structure.composition.reduced_formula),
+        stat_gap_fw = StaticFW(structure=prim_structure, name="{} gap gga initialize".format(structure.composition.reduced_formula),
                                 vasp_cmd=vasp_cmd, db_file=db_file)
         fws.append( stat_gap_fw)
         hse_fw = HSEBSFW(structure=prim_structure, parents=stat_gap_fw, name="hse", vasp_cmd=vasp_cmd, db_file=db_file)
@@ -148,7 +148,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings
 
     if diel_flag:
         copy_out = True if parents else False
-        diel_fw = DFPTFW(prim_structure, name='ionic dielectric', vasp_cmd=vasp_cmd, copy_vasp_outputs=copy_out,
+        diel_fw = DFPTFW(structure=prim_structure, name='ionic dielectric', vasp_cmd=vasp_cmd, copy_vasp_outputs=copy_out,
                          db_file=db_file, parents=parents)
         fws.append( diel_fw)
 
