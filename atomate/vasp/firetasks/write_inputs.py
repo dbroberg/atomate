@@ -54,13 +54,19 @@ class WriteVaspFromIOSet(FiretaskBase):
 
     def run_task(self, fw_spec):
         # if a full VaspInputSet object was provided
-        if hasattr(self['vasp_input_set'], 'write_input'):
-            vis = self['vasp_input_set']
+        # if hasattr(self['vasp_input_set'], 'write_input'):
+        #     vis = self['vasp_input_set']
+        #
+        # # if VaspInputSet String + parameters was provided
+        # else:
+        #     vis_cls = load_class("pymatgen.io.vasp.sets", self["vasp_input_set"])
+        #     vis = vis_cls(self["structure"], **self.get("vasp_input_params", {}))
+        # vis.write_input(".")
 
-        # if VaspInputSet String + parameters was provided
-        else:
-            vis_cls = load_class("pymatgen.io.vasp.sets", self["vasp_input_set"])
-            vis = vis_cls(self["structure"], **self.get("vasp_input_params", {}))
+        vis_orig = self["vasp_input_set"]
+        vis_dict = vis_orig.as_dict()
+        vis_dict.update(self.get("override_default_vasp_params", {}) or {})
+        vis = vis_orig.__class__.from_dict(vis_dict)
         vis.write_input(".")
 
 
