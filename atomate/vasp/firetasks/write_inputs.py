@@ -54,21 +54,14 @@ class WriteVaspFromIOSet(FiretaskBase):
 
     def run_task(self, fw_spec):
         # if a full VaspInputSet object was provided
-        # if hasattr(self['vasp_input_set'], 'write_input'):
-        #     vis = self['vasp_input_set']
-        #
-        # # if VaspInputSet String + parameters was provided
-        # else:
-        #     vis_cls = load_class("pymatgen.io.vasp.sets", self["vasp_input_set"])
-        #     vis = vis_cls(self["structure"], **self.get("vasp_input_params", {}))
-        # vis.write_input(".")
+        if hasattr(self['vasp_input_set'], 'write_input'):
+            vis = self['vasp_input_set']
 
-        vis_orig = self["vasp_input_set"]
-        vis_dict = vis_orig.as_dict()
-        vis_dict.update(self.get("vasp_input_set_params", {}) or {})
-        vis = vis_orig.__class__.from_dict(vis_dict)
+        # if VaspInputSet String + parameters was provided
+        else:
+            vis_cls = load_class("pymatgen.io.vasp.sets", self["vasp_input_set"])
+            vis = vis_cls(self["structure"], **self.get("vasp_input_params", {}))
         vis.write_input(".")
-
 
 @explicit_serialize
 class WriteVaspFromIOSetFromInterpolatedPOSCAR(GetInterpolatedPOSCAR):
