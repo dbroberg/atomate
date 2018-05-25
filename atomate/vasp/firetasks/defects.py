@@ -376,7 +376,7 @@ class DefectSetupFiretask(FiretaskBase):
                     half_kpts_first_relax=True
 
 
-                def_tag = "{}:{}_{}_{}atoms".format(structure.composition.reduced_formula, defcalc['name'],
+                def_tag = "{}:{}_{}_{}atoms".format(structure.composition.reduced_formula, defcalc.name,
                                                     charge, num_atoms)
 
                 defect_for_trans_param = defect.copy()
