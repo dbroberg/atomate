@@ -359,8 +359,22 @@ class DefectSetupFiretask(FiretaskBase):
             #iterate over all charges to be run
             for charge in defcalc['charges']:
                 chgdstruct = defect_sc.copy()
-                chgdstruct.set_charge(charge)  #NOTE that the charge will be reflected in charge of the MPRelaxSet's INCAR
-                defect_input_set = MPRelaxSet(chgdstruct, user_incar_settings=stdrd_defect_incar_settings.copy())
+                chgdstruct.set_charge(charge)  #NOTE that the charge will be reflected in charge of the MPStaticSets's INCAR
+                defect_input_set = MPStaticSet(chgdstruct, user_incar_settings=stdrd_defect_incar_settings.copy())
+
+                #if all kpoints are one then it doesnt make sense to do a double relaxation job.
+                all_kpts_are_one = True
+                for k in defect_input_set.kpoints.kpts[0]:
+                    if k != 1:
+                        all_kpts_are_one = False
+
+                if all_kpts_are_one:
+                    job_type = "normal"
+                    half_kpts_first_relax=False
+                else:
+                    job_type = "double_relaxation_run"
+                    half_kpts_first_relax=True
+
 
                 def_tag = "{}:{}_{}_{}atoms".format(structure.composition.reduced_formula, defcalc['name'],
                                                     charge, num_atoms)
@@ -378,8 +392,8 @@ class DefectSetupFiretask(FiretaskBase):
                                        vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
                                        copy_vasp_outputs=False,
                                        db_file=self.get("db_file", ">>db_file<<"),
-                                       job_type="double_relaxation_run",
-                                       half_kpts_first_relax=True)
+                                       job_type=job_type,
+                                       half_kpts_first_relax=half_kpts_first_relax)
                 fws.append(fw)
 
         return FWAction(detours=fws)
