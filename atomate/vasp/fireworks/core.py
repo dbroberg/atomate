@@ -597,8 +597,10 @@ class TransmuterFW(Firework):
             raise ValueError("Must specify structure or previous calculation")
 
         job_type = self.get("job_type", "normal")
+        ediffg = self.get("ediffg", None)
         half_kpts_first_relax = self.get("half_kpts_first_relax", False)
         t.append(RunVaspCustodian(vasp_cmd=vasp_cmd, job_type=job_type,
+                                  ediffg=ediffg,
                                   half_kpts_first_relax=half_kpts_first_relax))
         t.append(PassCalcLocs(name=name))
         t.append(VaspToDb(db_file=db_file,

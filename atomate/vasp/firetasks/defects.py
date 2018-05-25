@@ -191,12 +191,11 @@ class DefectSetupFiretask(FiretaskBase):
         num_atoms = len(bulk_supercell)
 
         bulk_incar_settings = {"EDIFF":.0001, "EDIFFG": 0.001, "ISMEAR":0, "SIGMA":0.05, "NSW": 0, "ISIF": 2,
-                               "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LAECHG":False}
+                               "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LAECHG":False, "LWAVE": True}
         vis = MPStaticSet(bulk_supercell, user_incar_settings =  bulk_incar_settings)
 
         bulk_tag = "{}:bulk_supercell_{}atoms".format(structure.composition.reduced_formula, num_atoms)
 
-        #TODO: add ability to do transformation for more abstract supercell shapes...
         supercell_size = sc_scale * np.identity(3)
         stat_fw = TransmuterFW(name = bulk_tag, structure=structure,
                                transformations=['SupercellTransformation'],
@@ -217,12 +216,9 @@ class DefectSetupFiretask(FiretaskBase):
         #track all defect_structures that will be setup/run
         def_structs = []
         #a list with following dict structure for each entry:
-        # {'structure': defective structure as supercell,
+        # {'defect': pymatgen defect object type,
         # 'charges': list of charges to run,
-        # 'transformations': list with pairs of [class for Transformation type, dict for transformation] to create defect (after supercell,
-        # 'name': base name (without charge) to be added to firework
-        # 'site_multiplicity': site multiplicity of defect AFTER full supercell transformation
-
+        # 'name': special name for fw to add to workflow
 
         #TODO for all defects below could also insert Transmuter for perturbating function / break local symmetry around defect
         if not vacancies:
@@ -231,7 +227,6 @@ class DefectSetupFiretask(FiretaskBase):
             VG = VacancyGenerator(b_struct)
             for vac_ind, vac in enumerate(VG):
                 vac_symbol = vac.site.specie.symbol
-                def_name = 'vac_{}_{}'.format(vac_ind+1, vac_symbol)
 
                 charges = []
                 if initial_charges:
@@ -243,7 +238,7 @@ class DefectSetupFiretask(FiretaskBase):
                     SCG = SimpleChargeGenerator(vac.copy())
                     charges = [v.charge for v in SCG]
 
-                def_structs.append({'name': def_name, 'charges': charges, 'defect': vac.copy()})
+                def_structs.append({'charges': charges, 'defect': vac.copy()})
 
         else:
             #only make vacancies of interest...
@@ -252,10 +247,8 @@ class DefectSetupFiretask(FiretaskBase):
                 VG = VacancyGenerator(b_struct)
                 for vac_ind, vac in enumerate(VG):
                     vac_symbol = vac.site.specie.symbol
-                    if elt_type != vac_symbol:
+                    if elt_type != vac_symbol: #only generate vacancies of interest
                         continue
-
-                    def_name = 'vac_{}_{}'.format(vac_ind+1, vac_symbol)
 
                     charges = []
                     if initial_charges:
@@ -267,11 +260,11 @@ class DefectSetupFiretask(FiretaskBase):
                         SCG = SimpleChargeGenerator(vac.copy())
                         charges = [v.charge for v in SCG]
 
-                    def_structs.append({'name': def_name, 'charges': charges, 'defect': vac.copy()})
+                    def_structs.append({'charges': charges, 'defect': vac.copy()})
 
 
         if not substitutions:
-            #then setting up all intrinsic antisites method....
+            #default is to set up all intrinsic antisites method....
             for sub_symbol in set(bulk_supercell.types_of_specie):
                 b_struct = structure.copy()
                 SG = SubstitutionGenerator(b_struct, sub_symbol)
@@ -279,9 +272,7 @@ class DefectSetupFiretask(FiretaskBase):
                     #find vac_symbol to correctly label defect
                     poss_deflist = sorted(sub.bulk_structure.get_sites_in_sphere(sub.site.coords, 2, include_index=True), key=lambda x: x[1])
                     defindex = poss_deflist[0][2]
-
                     vac_symbol = sub.bulk_structure[defindex].specie.symbol
-                    def_name = 'as_{}_{}_on_{}'.format(as_ind+1, sub_symbol, vac_symbol)
 
                     charges = []
                     if initial_charges:
@@ -294,7 +285,7 @@ class DefectSetupFiretask(FiretaskBase):
                         SCG = SimpleChargeGenerator(sub.copy())
                         charges = [v.charge for v in SCG]
 
-                    def_structs.append({'name': def_name, 'charges': charges, 'defect': sub.copy()})
+                    def_structs.append({'charges': charges, 'defect': sub.copy()})
         else:
             #setting up specfied antisite / sub types
             for vac_symbol, sub_list in substitutions.items():
@@ -310,11 +301,6 @@ class DefectSetupFiretask(FiretaskBase):
                         if vac_symbol != gen_vac_symbol: #only consider subs on specfied vac_symbol site
                             continue
 
-                        if sub_symbol in [spec.symbol for spec in b_struct.species]:
-                            def_name = 'as_{}_{}_on_{}'.format(as_ind+1, sub_symbol, vac_symbol)
-                        else:
-                            def_name = 'sub_{}_{}_on_{}'.format(as_ind+1, sub_symbol, vac_symbol)
-
                         charges = []
                         if initial_charges:
                             if 'substitutions' in initial_charges.keys():
@@ -326,21 +312,18 @@ class DefectSetupFiretask(FiretaskBase):
                             SCG = SimpleChargeGenerator(sub.copy())
                             charges = [v.charge for v in SCG]
 
-                        def_structs.append({'name': def_name, 'charges': charges, 'defect': sub.copy()})
+                        def_structs.append({'charges': charges, 'defect': sub.copy()})
 
 
         if interstitials:
-            #for time savings with site finding...
-            #TODO: make this work for time savings
-            voronoi_set = False
+            #TODO: for time savings, can reuse the Nils set approach since it is time consuming?
             nils_set = False
 
             def get_charges_from_inter( inter_obj):
                 inter_charges = []
                 if initial_charges:
-                    #TODO: test that manual charges approach actually works...
                     if 'interstitials' in initial_charges.keys():
-                        if elt_type in initial_charges['interstitials']: #NOTE this might get problematic if more than one type of interstit?
+                        if elt_type in initial_charges['interstitials']: #NOTE this does not differentiate different types of interstitials for a given element?
                             inter_charges = initial_charges['interstitials'][elt_type]
 
                 if not len(inter_charges):
@@ -358,20 +341,17 @@ class DefectSetupFiretask(FiretaskBase):
                         IG = InterstitialGenerator(b_struct, elt_type)
 
                     for inter_ind, inter in enumerate(IG):
-                        def_name = 'inter_{}_{}'.format(inter_ind+1, elt_type)
                         charges = get_charges_from_inter( inter)
-                        def_structs.append({'name': def_name, 'charges': charges, 'defect': inter.copy()})
-                else: #this is full manual approach with interstitials
-                    #TODO: test this
-                    inter = elt_val
-                    def_name = 'inter_{}'.format( elt_type)
-                    charges = get_charges_from_inter( inter)
-                    def_structs.append({'name': def_name, 'charges': charges, 'defect': inter.copy()})
+                        def_structs.append({'charges': charges, 'defect': inter.copy()})
+                else:
+                    #TODO: test full manual approach with interstitials
+                    charges = get_charges_from_inter( elt_val)
+                    def_structs.append({'charges': charges, 'defect': elt_val.copy()})
 
 
         stdrd_defect_incar_settings = {"EDIFF":.0001, "EDIFFG":0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05,
-                                       "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 100, "ISIF": 2,
-                                       "LAECHG":False }
+                                       "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 50, "ISIF": 2,
+                                       "LAECHG":False, "ADDGRID": True, "LWAVE": True}
 
         for defcalc in def_structs:
             defect = defcalc['defect'].copy()
@@ -397,7 +377,9 @@ class DefectSetupFiretask(FiretaskBase):
                                        vasp_input_set=defect_input_set,
                                        vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
                                        copy_vasp_outputs=False,
-                                       db_file=self.get("db_file", ">>db_file<<"))
+                                       db_file=self.get("db_file", ">>db_file<<"),
+                                       job_type="double_relaxation_run",
+                                       half_kpts_first_relax=True)
                 fws.append(fw)
 
         return FWAction(detours=fws)
