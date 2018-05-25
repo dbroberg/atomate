@@ -538,6 +538,10 @@ class TransmuterFW(Firework):
                  vasp_input_set=None, prev_calc_dir=None,
                  name="structure transmuter", vasp_cmd="vasp",
                  copy_vasp_outputs=True, db_file=None,
+                 ediffg=None, force_gamma=True, job_type="normal",
+                 max_force_threshold=RELAX_MAX_FORCE,
+                 auto_npar=">>auto_npar<<",
+                 half_kpts_first_relax=HALF_KPOINTS_FIRST_RELAX,
                  parents=None, override_default_vasp_params=None, **kwargs):
         """
         Apply the transformations to the input structure, write the input set corresponding
@@ -562,12 +566,13 @@ class TransmuterFW(Firework):
             override_default_vasp_params (dict): additional user input settings for vasp_input_set.
             \*\*kwargs: Other kwargs that are passed to Firework.__init__.
         """
+        #TODO: update Args with newly added documentation for double relax
         fw_name = "{}-{}".format(structure.composition.reduced_formula, name)
         override_default_vasp_params = override_default_vasp_params or {}
         t = []
 
         vasp_input_set = vasp_input_set or MPStaticSet(structure,
-                                                       force_gamma=True,
+                                                       force_gamma=force_gamma,
                                                        **override_default_vasp_params)
 
         if prev_calc_dir:
@@ -596,11 +601,10 @@ class TransmuterFW(Firework):
         else:
             raise ValueError("Must specify structure or previous calculation")
 
-        job_type = self.get("job_type", "normal")
-        ediffg = self.get("ediffg", None)
-        half_kpts_first_relax = self.get("half_kpts_first_relax", False)
         t.append(RunVaspCustodian(vasp_cmd=vasp_cmd, job_type=job_type,
+                                  max_force_threshold=max_force_threshold,
                                   ediffg=ediffg,
+                                  auto_npar=auto_npar,
                                   half_kpts_first_relax=half_kpts_first_relax))
         t.append(PassCalcLocs(name=name))
         t.append(VaspToDb(db_file=db_file,
