@@ -63,6 +63,7 @@ class WriteVaspFromIOSet(FiretaskBase):
             vis = vis_cls(self["structure"], **self.get("vasp_input_params", {}))
         vis.write_input(".")
 
+
 @explicit_serialize
 class WriteVaspFromIOSetFromInterpolatedPOSCAR(GetInterpolatedPOSCAR):
     """
