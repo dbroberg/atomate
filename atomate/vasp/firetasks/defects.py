@@ -98,9 +98,6 @@ def optimize_structure_sc_scale(inp_struct, final_site_no):
 
 
 
-
-
-
 @explicit_serialize
 class DefectSetupFiretask(FiretaskBase):
     """
@@ -197,6 +194,7 @@ class DefectSetupFiretask(FiretaskBase):
         bulk_tag = "{}:bulk_supercell_{}atoms".format(structure.composition.reduced_formula, num_atoms)
 
         supercell_size = sc_scale * np.identity(3)
+        #TODO update transmuter approach to something with transformations printed...
         stat_fw = TransmuterFW(name = bulk_tag, structure=structure,
                                transformations=['SupercellTransformation'],
                                transformation_params=[{"scaling_matrix": supercell_size}],
@@ -265,7 +263,7 @@ class DefectSetupFiretask(FiretaskBase):
 
         if not substitutions:
             #default is to set up all intrinsic antisites method....
-            for sub_symbol in set(bulk_supercell.types_of_specie):
+            for sub_symbol in [elt.symbol for elt in bulk_supercell.types_of_specie]:
                 b_struct = structure.copy()
                 SG = SubstitutionGenerator(b_struct, sub_symbol)
                 for as_ind, sub in enumerate(SG):
@@ -278,9 +276,8 @@ class DefectSetupFiretask(FiretaskBase):
                     if initial_charges:
                         if 'substitutions' in initial_charges.keys():
                             if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of antisite?
-                                if sub_symbol in initial_charges['substitutions'][vac_symbol]:
+                                if sub_symbol in initial_charges['substitutions'][vac_symbol].keys():
                                     charges = initial_charges['substitutions'][vac_symbol][sub_symbol]
-
                     if not len(charges):
                         SCG = SimpleChargeGenerator(sub.copy())
                         charges = [v.charge for v in SCG]
@@ -297,7 +294,6 @@ class DefectSetupFiretask(FiretaskBase):
                         poss_deflist = sorted(sub.bulk_structure.get_sites_in_sphere(sub.site.coords, 2, include_index=True), key=lambda x: x[1])
                         defindex = poss_deflist[0][2]
                         gen_vac_symbol = sub.bulk_structure[defindex].specie.symbol
-
                         if vac_symbol != gen_vac_symbol: #only consider subs on specfied vac_symbol site
                             continue
 
@@ -305,9 +301,8 @@ class DefectSetupFiretask(FiretaskBase):
                         if initial_charges:
                             if 'substitutions' in initial_charges.keys():
                                 if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of antisite?
-                                    if sub_symbol in initial_charges['substitutions'][vac_symbol]:
+                                    if sub_symbol in initial_charges['substitutions'][vac_symbol].keys():
                                         charges = initial_charges['substitutions'][vac_symbol][sub_symbol]
-
                         if not len(charges):
                             SCG = SimpleChargeGenerator(sub.copy())
                             charges = [v.charge for v in SCG]
@@ -384,7 +379,7 @@ class DefectSetupFiretask(FiretaskBase):
                 chgdef_trans = ["DefectTransformation"]
                 chgdef_trans_params = [{"scaling_matrix": sc_scale,
                                         "defect": defect_for_trans_param}]
-
+                #TODO switch away from transmuter approach towards whatever we decide to do with powerups etc...
                 fw = TransmuterFW(name = def_tag, structure=structure,
                                        transformations=chgdef_trans,
                                        transformation_params=chgdef_trans_params,
@@ -394,6 +389,8 @@ class DefectSetupFiretask(FiretaskBase):
                                        db_file=self.get("db_file", ">>db_file<<"),
                                        job_type=job_type,
                                        half_kpts_first_relax=half_kpts_first_relax)
+                # fw.powerup -> add a firetask at beginning that creates the defect structure
+
                 fws.append(fw)
 
         return FWAction(detours=fws)
@@ -410,6 +407,7 @@ class DefectAnalysisFireTask(FiretaskBase):
         ...only meant for single job in database at a time right now...
         TODO: more computationally efficient by saving locpot data etc..
         """
+        #TODO: merge this to pymatgen current capabilities and get rid of everything we have right here now?
 
         pat = os.getcwd()
         basepat = os.path.split(pat)[0]
