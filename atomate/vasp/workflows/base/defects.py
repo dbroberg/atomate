@@ -25,9 +25,9 @@ from atomate.vasp.fireworks.defects import DefectAnalysisFW
 logger = get_logger(__name__)
 
 
-def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings=None,
+def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_settings={},
                         vasp_cmd=">>vasp_cmd<<", db_file=">>db_file<<",
-                        conventional=True, diel_flag=True, n_max=128,
+                        conventional=True, diel_flag=True, n_max=128, job_type='normal',
                         vacancies=[], substitutions={}, interstitials={},
                         initial_charges={}, rerelax_flag=False, hybrid_flag=True,
                         run_analysis=False):
@@ -47,8 +47,8 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings
         structure (Structure): input structure to have defects run on
         mpid (str): Materials Project id number to be used (for storage in metadata).
         name (str): some appropriate name for the workflow.
-        user_settings (dict): User vasp settings for relaxation calculations.
-            Caution when modifying this - several default settings are forced (as shown below)
+        user_incar_settings (dict):
+            a dictionary of incar settings specified by user for both bulk and defect supercells
         vasp_cmd (str): Command to run vasp.
         db_file (str): path to file containing the database credentials.
         conventional (bool): flag to use conventional structure (rather than primitive) for defect supercells,
@@ -56,6 +56,8 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings
         diel_flag (bool): flag to also run dielectric calculations.
             (required for charge corrections to be run) defaults to True.
         n_max (int): maximum supercell size to consider for supercells
+        job_type (str): job_type flag to be passed to bulk and defect supercell calculations.
+            default is 'normal', another option is 'metagga_opt_run' which can be used for SCAN
 
         vacancies (list):
             If list is totally empty, all vacancies are considered (default).
@@ -157,7 +159,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_settings
         t.append(CopyVaspOutputs(calc_loc= True ))
 
     t.append(DefectSetupFiretask(structure=prim_structure, cellmax=n_max, conventional=conventional,
-                                 vasp_cmd=vasp_cmd, db_file=db_file,
+                                 vasp_cmd=vasp_cmd, db_file=db_file, user_incar_settings=user_incar_settings, job_type=job_type,
                                  vacancies=vacancies, substitutions=substitutions,
                                  interstitials=interstitials, initial_charges=initial_charges))
 
