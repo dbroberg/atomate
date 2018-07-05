@@ -17,6 +17,7 @@ Requirements:
 """
 
 import os
+import itertools
 import numpy as np
 
 from monty.json import jsanitize
@@ -31,13 +32,6 @@ from pymatgen.analysis.defects.generators import VacancyGenerator, SubstitutionG
 
 from fireworks import FiretaskBase, FWAction, explicit_serialize
 
-from pycdt.core.chemical_potentials import MPChemPotAnalyzer
-from pycdt.core.defectsmaker import ChargedDefectsStructures
-from pycdt.corrections.freysoldt_correction import FreysoldtCorrection
-from pycdt.corrections.kumagai_correction import KumagaiBulkInit, KumagaiCorrection
-from pycdt.corrections.extra_corrections import ExtraCorrections    #this is just on PyCDT development branch for now
-from pycdt.core.defects_analyzer import ComputedDefect
-
 from atomate.utils.utils import get_logger
 from atomate.vasp.fireworks.core import TransmuterFW
 
@@ -48,54 +42,54 @@ logger = get_logger(__name__)
 
 def optimize_structure_sc_scale(inp_struct, final_site_no):
     """
-    A function for optimizing bulk structure size
-    (note this copies a function from pycdt.core.defectsmaker)
+    A function for finding optimal supercell transformation
+    by maximizing the nearest image distance with the number of
+    atoms remaining less than final_site_no
 
-    TODO: clean this function up to be prettier / make more sense
-    TODO: have an option for supercell scaling in a way besides cubic scaling...
+    Args:
+        inp_struct: input pymatgen Structure object
+        final_site_no (float or int): maximum number of atoms
+        for final supercell
+
+    Returns:
+        3 x 1 array for supercell transformation
     """
-    if final_site_no < len(inp_struct.sites):
+    if final_site_no <= len(inp_struct.sites):
         final_site_no = len(inp_struct.sites)
 
     dictio={}
-    for k1 in range(1,6):
-        for k2 in range(1,6):
-            for k3 in range(1,6):
-                struct = inp_struct.copy()
-                struct.make_supercell([k1, k2, k3])
-                if len(struct.sites) > final_site_no:
-                    continue
+    #consider up to a 7x7x7 supercell
+    for kset in itertools.product(range(1,7), range(1,7), range(1,7)):
+        num_sites = len(inp_struct) * np.product(kset)
+        if num_sites > final_site_no:
+            continue
 
-                min_dist = 1000.0
-                for a in range(-1,2):
-                    for b in range(-1,2):
-                        for c in range(-1,2):
-                            try:
-                                distance = struct.get_distance(0, 0, (a,b,c))
-                            except:
-                                print (a, b, c)
-                                raise
-                            if  distance < min_dist and distance>0.00001:
-                                min_dist = distance
-                min_dist = round(min_dist, 3)
-                if min_dist in dictio:
-                    if dictio[min_dist]['num_sites'] > struct.num_sites:
-                        dictio[min_dist]['num_sites'] = struct.num_sites
-                        dictio[min_dist]['supercell'] = [k1,k2,k3]
-                else:
-                    dictio[min_dist]={}
-                    dictio[min_dist]['num_sites'] = struct.num_sites
-                    dictio[min_dist]['supercell'] = [k1,k2,k3]
-    min_dist = -1.0
-    biggest = None
-    for c in dictio:
-        if c > min_dist:
-            biggest = dictio[c]['supercell']
-            min_dist = c
-    if biggest is None or min_dist < 0.0:
+        struct = inp_struct.copy()
+        struct.make_supercell(kset)
+
+        #find closest image
+        min_dist = 1000.
+        for image_array in itertools.product( range(-1,2), range(-1,2), range(-1,2)):
+            if image_array == (0,0,0):
+                continue
+            distance = struct.get_distance(0, 0, image_array)
+            if distance < min_dist:
+                min_dist = distance
+
+        min_dist = round(min_dist, 3)
+        if min_dist in dictio.keys():
+            if dictio[min_dist]['num_sites'] > num_sites:
+                dictio[min_dist].update( {'num_sites': num_sites, 'supercell': kset[:]})
+        else:
+            dictio[min_dist] = {'num_sites': num_sites, 'supercell': kset[:]}
+
+    if not len(dictio.keys()):
         raise RuntimeError('could not find any supercell scaling vector')
-    return biggest
 
+    min_dist = max( list(dictio.keys()))
+    biggest = dictio[ min_dist]['supercell']
+
+    return biggest
 
 
 @explicit_serialize
@@ -113,7 +107,12 @@ class DefectSetupFiretask(FiretaskBase):
             the vasp cmd
         db_file (string):
             the db file
-
+        user_incar_settings (dict):
+            a dictionary of incar settings specified by user for both bulk and defect supercells
+            note that charges do not need to be set in this dicitionary
+        job_type (string):
+            job_type to use for defect and bulk calculations
+            default is 'normal', another option is 'metagga_opt_run' for SCAN
 
         vacancies (list):
             If list is totally empty, all vacancies are considered (default).
@@ -164,9 +163,6 @@ class DefectSetupFiretask(FiretaskBase):
                 in the GaAs structure this makes vacancy charges in states -3,-2,-1,0; Ga_As antisites in the q=0 state,
                 and all other defects will have charges generated in the restrictive automated format stated for DEFAULT
 
-
-
-
     """
     def run_task(self, fw_spec):
         if os.path.exists("POSCAR"):
@@ -182,54 +178,58 @@ class DefectSetupFiretask(FiretaskBase):
         cellmax=self.get("cellmax", 128)
         sc_scale = optimize_structure_sc_scale(structure, cellmax)
 
+        job_type = self.get("job_type", 'normal') #another option is 'metagga_opt_run' for SCAN
+        #TODO: test that SCAN works. I dont think I need additional input params to change INCAR, as it is the default setting?
+
         #First Firework is for bulk supercell
         bulk_supercell = structure.copy()
         bulk_supercell.make_supercell(sc_scale)
         num_atoms = len(bulk_supercell)
 
+        user_incar_settings = self.get("user_incar_settings", {})
+
         bulk_incar_settings = {"EDIFF":.0001, "EDIFFG": 0.001, "ISMEAR":0, "SIGMA":0.05, "NSW": 0, "ISIF": 2,
                                "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LAECHG":False, "LWAVE": True}
+        bulk_incar_settings.update( user_incar_settings)
         vis = MPStaticSet(bulk_supercell, user_incar_settings =  bulk_incar_settings)
 
         bulk_tag = "{}:bulk_supercell_{}atoms".format(structure.composition.reduced_formula, num_atoms)
 
         supercell_size = sc_scale * np.identity(3)
-        #TODO update transmuter approach to something with transformations printed...
         stat_fw = TransmuterFW(name = bulk_tag, structure=structure,
                                transformations=['SupercellTransformation'],
                                transformation_params=[{"scaling_matrix": supercell_size}],
                                vasp_input_set=vis, copy_vasp_outputs=False, #structure already copied over...
                                vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
-                               db_file=self.get("db_file", ">>db_file<<"))
+                               db_file=self.get("db_file", ">>db_file<<"),
+                               job_type=job_type)
         fws.append(stat_fw)
 
 
-        #Now make defect set
+        # make defect set
         vacancies = self.get("vacancies", list())
         substitutions = self.get("substitutions", dict())
         interstitials = self.get("interstitials", list())
         initial_charges  = self.get("initial_charges", dict())
 
-
-        #track all defect_structures that will be setup/run
         def_structs = []
         #a list with following dict structure for each entry:
         # {'defect': pymatgen defect object type,
-        # 'charges': list of charges to run,
-        # 'name': special name for fw to add to workflow
+        # 'charges': list of charges to run}
 
-        #TODO for all defects below could also insert Transmuter for perturbating function / break local symmetry around defect
+        #TODO add ability to include perturbing function to break local symmetry around defect
         if not vacancies:
-            #make all vacancies...
+            #default: generate all vacancies...
             b_struct = structure.copy()
-            VG = VacancyGenerator(b_struct)
+            VG = VacancyGenerator( b_struct)
             for vac_ind, vac in enumerate(VG):
                 vac_symbol = vac.site.specie.symbol
 
                 charges = []
                 if initial_charges:
                     if 'vacancies' in initial_charges.keys():
-                        if vac_symbol in initial_charges['vacancies']: #NOTE this might get problematic if more than one type of vacancy?
+                        if vac_symbol in initial_charges['vacancies']:
+                            #NOTE if more than one type of vacancy for a given specie, this will assign same charges to all
                             charges = initial_charges['vacancies'][vac_symbol]
 
                 if not len(charges):
@@ -239,19 +239,20 @@ class DefectSetupFiretask(FiretaskBase):
                 def_structs.append({'charges': charges, 'defect': vac.copy()})
 
         else:
-            #only make vacancies of interest...
+            #only create vacancies of interest...
             for elt_type in vacancies:
                 b_struct = structure.copy()
-                VG = VacancyGenerator(b_struct)
+                VG = VacancyGenerator( b_struct)
                 for vac_ind, vac in enumerate(VG):
                     vac_symbol = vac.site.specie.symbol
-                    if elt_type != vac_symbol: #only generate vacancies of interest
+                    if elt_type != vac_symbol:
                         continue
 
                     charges = []
                     if initial_charges:
                         if 'vacancies' in initial_charges.keys():
-                            if vac_symbol in initial_charges['vacancies']: #NOTE this might get problematic if more than one type of vacancy?
+                            if vac_symbol in initial_charges['vacancies']:
+                                #NOTE if more than one type of vacancy for a given specie, this will assign same charges to all
                                 charges = initial_charges['vacancies'][vac_symbol]
 
                     if not len(charges):
@@ -262,7 +263,7 @@ class DefectSetupFiretask(FiretaskBase):
 
 
         if not substitutions:
-            #default is to set up all intrinsic antisites method....
+            #default: set up all intrinsic antisites
             for sub_symbol in [elt.symbol for elt in bulk_supercell.types_of_specie]:
                 b_struct = structure.copy()
                 SG = SubstitutionGenerator(b_struct, sub_symbol)
@@ -275,7 +276,8 @@ class DefectSetupFiretask(FiretaskBase):
                     charges = []
                     if initial_charges:
                         if 'substitutions' in initial_charges.keys():
-                            if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of antisite?
+                            if vac_symbol in initial_charges['substitutions']:
+                                #NOTE if more than one type of substituion for a given specie, this will assign same charges to all
                                 if sub_symbol in initial_charges['substitutions'][vac_symbol].keys():
                                     charges = initial_charges['substitutions'][vac_symbol][sub_symbol]
                     if not len(charges):
@@ -284,7 +286,7 @@ class DefectSetupFiretask(FiretaskBase):
 
                     def_structs.append({'charges': charges, 'defect': sub.copy()})
         else:
-            #setting up specfied antisite / sub types
+            #only set up specified antisite / substituion types
             for vac_symbol, sub_list in substitutions.items():
                 for sub_symbol in sub_list:
                     b_struct = structure.copy()
@@ -300,7 +302,8 @@ class DefectSetupFiretask(FiretaskBase):
                         charges = []
                         if initial_charges:
                             if 'substitutions' in initial_charges.keys():
-                                if vac_symbol in initial_charges['substitutions']: #NOTE this might get problematic if more than one type of antisite?
+                                if vac_symbol in initial_charges['substitutions']:
+                                    #NOTE if more than one type of substituion for a given specie, this will assign same charges to all
                                     if sub_symbol in initial_charges['substitutions'][vac_symbol].keys():
                                         charges = initial_charges['substitutions'][vac_symbol][sub_symbol]
                         if not len(charges):
@@ -311,14 +314,15 @@ class DefectSetupFiretask(FiretaskBase):
 
 
         if interstitials:
-            #TODO: for time savings, can reuse the Nils set approach since it is time consuming?
-            nils_set = False
+            #default: do not include interstitial defects
+            #TODO: for time savings, can reuse the InFit set approach since it is time consuming
 
             def get_charges_from_inter( inter_obj):
                 inter_charges = []
                 if initial_charges:
                     if 'interstitials' in initial_charges.keys():
-                        if elt_type in initial_charges['interstitials']: #NOTE this does not differentiate different types of interstitials for a given element?
+                        if elt_type in initial_charges['interstitials']:
+                            #NOTE if more than one type of interstitial for a given specie, this will assign same charges to all
                             inter_charges = initial_charges['interstitials'][elt_type]
 
                 if not len(inter_charges):
@@ -332,44 +336,32 @@ class DefectSetupFiretask(FiretaskBase):
                     if elt_val == 'Voronoi':
                         IG = VoronoiInterstitialGenerator(b_struct, elt_type)
                     else:
-                        #TODO: test this works
                         IG = InterstitialGenerator(b_struct, elt_type)
 
                     for inter_ind, inter in enumerate(IG):
                         charges = get_charges_from_inter( inter)
                         def_structs.append({'charges': charges, 'defect': inter.copy()})
                 else:
-                    #TODO: test full manual approach with interstitials
                     charges = get_charges_from_inter( elt_val)
                     def_structs.append({'charges': charges, 'defect': elt_val.copy()})
 
 
         stdrd_defect_incar_settings = {"EDIFF":.0001, "EDIFFG":0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05,
-                                       "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 50, "ISIF": 2,
+                                       "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 100, "ISIF": 2,
                                        "LAECHG":False, "ADDGRID": True, "LWAVE": True}
+        stdrd_defect_incar_settings.update( user_incar_settings)
 
+        # now that def_structs is assembled, set up Transformation FW for all defect + charge combinations
         for defcalc in def_structs:
             defect = defcalc['defect'].copy()
-            defect_sc = defect.generate_defect_structure(supercell = sc_scale)
+            defect_sc = defect.generate_defect_structure( supercell = supercell_size)
             #iterate over all charges to be run
             for charge in defcalc['charges']:
                 chgdstruct = defect_sc.copy()
                 chgdstruct.set_charge(charge)  #NOTE that the charge will be reflected in charge of the MPStaticSets's INCAR
-                defect_input_set = MPStaticSet(chgdstruct, user_incar_settings=stdrd_defect_incar_settings.copy())
-
-                #if all kpoints are one then it doesnt make sense to do a double relaxation job.
-                all_kpts_are_one = True
-                for k in defect_input_set.kpoints.kpts[0]:
-                    if k != 1:
-                        all_kpts_are_one = False
-
-                if all_kpts_are_one:
-                    job_type = "normal"
-                    half_kpts_first_relax=False
-                else:
-                    job_type = "double_relaxation_run"
-                    half_kpts_first_relax=True
-
+                defect_input_set = MPStaticSet(chgdstruct, reciprocal_density=100, #this is default reciprocal kpt density
+                                               user_incar_settings=stdrd_defect_incar_settings.copy(),
+                                               use_structure_charge=True)
 
                 def_tag = "{}:{}_{}_{}atoms".format(structure.composition.reduced_formula, defect.name,
                                                     charge, num_atoms)
@@ -377,9 +369,9 @@ class DefectSetupFiretask(FiretaskBase):
                 defect_for_trans_param = defect.copy()
                 defect_for_trans_param.set_charge(charge)
                 chgdef_trans = ["DefectTransformation"]
-                chgdef_trans_params = [{"scaling_matrix": sc_scale,
+                chgdef_trans_params = [{"scaling_matrix": supercell_size,
                                         "defect": defect_for_trans_param}]
-                #TODO switch away from transmuter approach towards whatever we decide to do with powerups etc...
+
                 fw = TransmuterFW(name = def_tag, structure=structure,
                                        transformations=chgdef_trans,
                                        transformation_params=chgdef_trans_params,
@@ -387,9 +379,7 @@ class DefectSetupFiretask(FiretaskBase):
                                        vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
                                        copy_vasp_outputs=False,
                                        db_file=self.get("db_file", ">>db_file<<"),
-                                       job_type=job_type,
-                                       half_kpts_first_relax=half_kpts_first_relax)
-                # fw.powerup -> add a firetask at beginning that creates the defect structure
+                                       job_type=job_type)
 
                 fws.append(fw)
 
