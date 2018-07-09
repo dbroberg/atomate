@@ -139,7 +139,7 @@ class DefectSetupFiretask(FiretaskBase):
                     then list of pairs of [symbol, generation method (str)] can be provided
                         ex. ['Ga', 'Voronoi'] in GaAs structure will produce Galium interstitials from the
                             Voronoi site finding algorithm
-                        NOTE: only options for interstitial generation are "Voronoi" and "Nils"
+                        NOTE: only options for interstitial generation are "Voronoi" and "InFit"
             Option 2 for generation: If user wants to add their own interstitial sites for consideration
                     the list of pairs of [symbol, Interstitial object] can be provided, where the
                     Interstitial pymatgen.analysis.defects.core object is used to describe the defect of interest
@@ -315,7 +315,7 @@ class DefectSetupFiretask(FiretaskBase):
 
         if interstitials:
             #default: do not include interstitial defects
-            #TODO: for time savings, can reuse the InFit set approach since it is time consuming
+            #TODO: for time savings, can reuse result of InFit intersitital finding approach since it is time consuming
 
             def get_charges_from_inter( inter_obj):
                 inter_charges = []
@@ -335,8 +335,11 @@ class DefectSetupFiretask(FiretaskBase):
                     b_struct = structure.copy()
                     if elt_val == 'Voronoi':
                         IG = VoronoiInterstitialGenerator(b_struct, elt_type)
-                    else:
+                    elif elt_val == 'InFit':
                         IG = InterstitialGenerator(b_struct, elt_type)
+                    else:
+                        raise ValueError('Interstitial finding method not recognized. '
+                                         'Please choose either Voronoi or InFit.')
 
                     for inter_ind, inter in enumerate(IG):
                         charges = get_charges_from_inter( inter)
