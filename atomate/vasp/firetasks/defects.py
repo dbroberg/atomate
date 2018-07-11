@@ -34,6 +34,7 @@ from fireworks import FiretaskBase, FWAction, explicit_serialize
 
 from atomate.utils.utils import get_logger
 from atomate.vasp.fireworks.core import TransmuterFW
+from atomate.vasp.fireworks.defects import HSETransmuterFW
 
 from monty.serialization import dumpfn
 from monty.json import MontyEncoder
@@ -110,9 +111,17 @@ class DefectSetupFiretask(FiretaskBase):
         user_incar_settings (dict):
             a dictionary of incar settings specified by user for both bulk and defect supercells
             note that charges do not need to be set in this dicitionary
-        job_type (string):
-            job_type to use for defect and bulk calculations
-            default is 'normal', another option is 'metagga_opt_run' for SCAN
+
+        calc_type (str): type of defect calculation that user desires to run
+            default is 'gga' which runs a GGA defect calculation
+            additional options are:
+                'scan' which can be used for SCAN and
+                'hse' which can be used for doing an HSE06 run
+                    NOTE 1: for these latter two we enforce that relaxation
+                        is done on the bulk_structure before running defects
+                        (rerelax_flag must be set to True)
+                    NOTE 2: for both of these we first relax with GGA then
+                        followup with scan or hse relaxations
 
         vacancies (list):
             If list is totally empty, all vacancies are considered (default).
@@ -178,8 +187,12 @@ class DefectSetupFiretask(FiretaskBase):
         cellmax=self.get("cellmax", 128)
         sc_scale = optimize_structure_sc_scale(structure, cellmax)
 
-        job_type = self.get("job_type", 'normal') #another option is 'metagga_opt_run' for SCAN
-        #TODO: test that SCAN works. I dont think I need additional input params to change INCAR, as it is the default setting?
+        calc_type = self.get("calc_type", 'gga')
+
+        if calc_type == 'scan':
+            job_type = "metagga_opt_run"
+        else:
+            job_type = "normal"
 
         #First Firework is for bulk supercell
         bulk_supercell = structure.copy()
@@ -193,18 +206,29 @@ class DefectSetupFiretask(FiretaskBase):
         bulk_incar_settings.update( user_incar_settings)
         vis = MPStaticSet(bulk_supercell, user_incar_settings =  bulk_incar_settings)
 
-        bulk_tag = "{}:bulk_supercell_{}atoms".format(structure.composition.reduced_formula, num_atoms)
 
         supercell_size = sc_scale * np.identity(3)
-        stat_fw = TransmuterFW(name = bulk_tag, structure=structure,
-                               transformations=['SupercellTransformation'],
-                               transformation_params=[{"scaling_matrix": supercell_size}],
-                               vasp_input_set=vis, copy_vasp_outputs=False, #structure already copied over...
-                               vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
-                               db_file=self.get("db_file", ">>db_file<<"),
-                               job_type=job_type)
-        fws.append(stat_fw)
+        if calc_type != 'hse':
+            bulk_tag = "{}:bulk_supercell_{}atoms".format(structure.composition.reduced_formula, num_atoms)
+            stat_fw = TransmuterFW(name = bulk_tag, structure=structure,
+                                   transformations=['SupercellTransformation'],
+                                   transformation_params=[{"scaling_matrix": supercell_size}],
+                                   vasp_input_set=vis, copy_vasp_outputs=False, #structure already copied over...
+                                   vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
+                                   db_file=self.get("db_file", ">>db_file<<"),
+                                   job_type=job_type)
+        else:
+            bulk_tag = "{}:hsebulk_supercell_{}atoms".format(structure.composition.reduced_formula, num_atoms)
+            #TODO: confirm that hse static calc occurs
+            stat_fw = HSETransmuterFW(name = bulk_tag, structure=structure,
+                                      transformations=['SupercellTransformation'],
+                                      transformation_params=[{"scaling_matrix": supercell_size}],
+                                      vasp_input_set=vis, copy_vasp_outputs=False, #structure already copied over...
+                                      vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
+                                      db_file=self.get("db_file", ">>db_file<<"),
+                                      job_type=job_type)
 
+        fws.append(stat_fw)
 
         # make defect set
         vacancies = self.get("vacancies", list())
@@ -366,8 +390,7 @@ class DefectSetupFiretask(FiretaskBase):
                                                user_incar_settings=stdrd_defect_incar_settings.copy(),
                                                use_structure_charge=True)
 
-                def_tag = "{}:{}_{}_{}atoms".format(structure.composition.reduced_formula, defect.name,
-                                                    charge, num_atoms)
+
 
                 defect_for_trans_param = defect.copy()
                 defect_for_trans_param.set_charge(charge)
@@ -375,14 +398,29 @@ class DefectSetupFiretask(FiretaskBase):
                 chgdef_trans_params = [{"scaling_matrix": supercell_size,
                                         "defect": defect_for_trans_param}]
 
-                fw = TransmuterFW(name = def_tag, structure=structure,
-                                       transformations=chgdef_trans,
-                                       transformation_params=chgdef_trans_params,
-                                       vasp_input_set=defect_input_set,
-                                       vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
-                                       copy_vasp_outputs=False,
-                                       db_file=self.get("db_file", ">>db_file<<"),
-                                       job_type=job_type)
+                if calc_type != 'hse':
+                    def_tag = "{}:{}_{}_{}atoms".format(structure.composition.reduced_formula, defect.name,
+                                                    charge, num_atoms)
+                    fw = TransmuterFW(name = def_tag, structure=structure,
+                                           transformations=chgdef_trans,
+                                           transformation_params=chgdef_trans_params,
+                                           vasp_input_set=defect_input_set,
+                                           vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
+                                           copy_vasp_outputs=False,
+                                           db_file=self.get("db_file", ">>db_file<<"),
+                                           job_type=job_type)
+                else:
+                    #TODO: confirm that hse defect calc occurs
+                    def_tag = "{}:hse{}_{}_{}atoms".format(structure.composition.reduced_formula, defect.name,
+                                                    charge, num_atoms)
+                    fw = HSETransmuterFW(name = def_tag, structure=structure,
+                                           transformations=chgdef_trans,
+                                           transformation_params=chgdef_trans_params,
+                                           vasp_input_set=defect_input_set,
+                                           vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
+                                           copy_vasp_outputs=False,
+                                           db_file=self.get("db_file", ">>db_file<<"),
+                                           job_type=job_type)
 
                 fws.append(fw)
 
