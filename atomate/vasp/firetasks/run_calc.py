@@ -73,7 +73,7 @@ class RunVaspCustodian(FiretaskBase):
 
     Optional params:
         job_type: (str) - choose from "normal" (default), "double_relaxation_run" (two consecutive 
-            jobs), "full_opt_run" (multiple optimizations), and "neb"
+            jobs), "full_opt_run" (multiple optimizations), "neb", and "hse" (hse run after gga, useful for hse relaxations)
         handler_group: (str or [ErrorHandler]) - group of handlers to use. See handler_groups dict in the code for
             the groups and complete list of handlers in each group. Alternatively, you can
             specify a list of ErrorHandler objects.
@@ -176,11 +176,29 @@ class RunVaspCustodian(FiretaskBase):
 
             jobs = [VaspNEBJob(vasp_cmd, final=False, auto_npar=auto_npar,
                                gamma_vasp_cmd=gamma_vasp_cmd)]
+        elif job_type == "hse":
+            # construct jobs as a GGA relaxation followed by a HSE relaxation
+            incar_update = {  "ALGO": "All", "HFSCREEN": 0.2, "ICHARG": 1,
+                              "LHFCALC": True, "LREAL": "AUTO", "PREC": "Accurate",
+                              "PRECFOCK": "Fast"}
+            settings_overide_hse = [
+                {"dict": "INCAR",
+                 "action": {"_set": incar_update}},
+                {"file": "CONTCAR",
+                 "action": {"_file_copy": {"dest": "POSCAR"}}}]
+
+            jobs = [VaspJob(vasp_cmd, final=False, suffix=".ggarelax1",
+                            auto_npar=auto_npar, auto_continue=True,
+                            gamma_vasp_cmd=gamma_vasp_cmd,
+                            settings_override=None),
+                    VaspJob(vasp_cmd, final=True, backup=False, suffix=".hserelax2",
+                            auto_npar=auto_npar, auto_continue=True,
+                            gamma_vasp_cmd=gamma_vasp_cmd,
+                            settings_override=settings_overide_hse)]
         else:
             raise ValueError("Unsupported job type: {}".format(job_type))
 
         # construct handlers
-
         handler_group = self.get("handler_group", "default")
         if isinstance(handler_group, six.string_types):
             handlers = handler_groups[handler_group]

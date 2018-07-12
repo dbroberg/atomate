@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 
 def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_settings={},
                         vasp_cmd=">>vasp_cmd<<", db_file=">>db_file<<",
-                        conventional=True, diel_flag=True, n_max=128, calc_type='gga',
+                        conventional=True, diel_flag=True, n_max=128, job_type='normal',
                         vacancies=[], substitutions={}, interstitials={},
                         initial_charges={}, rerelax_flag=False, hybrid_run_for_gap_corr=True,
                         run_analysis=False):
@@ -58,16 +58,15 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
             (required for charge corrections to be run) defaults to True.
         n_max (int): maximum supercell size to consider for supercells
 
-        calc_type (str): type of defect calculation that user desires to run
-            default is 'gga' which runs a GGA defect calculation
+        job_type (str): type of defect calculation that user desires to run
+            default is 'normal' which runs a GGA defect calculation
             additional options are:
-                'scan' which can be used for SCAN and
-                'hse' which can be used for doing an HSE06 run
-                    NOTE 1: for these latter two we enforce that relaxation
-                        is done on the bulk_structure before running defects
-                        (rerelax_flag must be set to True)
-                    NOTE 2: for both of these we first relax with GGA then
-                        followup with scan or hse relaxations
+                'double_relaxation_run' which runs a double relaxation GGA run
+                'metagga_opt_run' which runs a double relaxation with SCAN (currently
+                    no way to turn off double relaxation approach with SCAN)
+                'hse' which runs a relaxation step with GGA followed by a relaxation with HSE
+                    NOTE: for these latter two we highly recommend that rerelax is set to True
+                        so the bulk_structure's lattice is optimized before running defects
 
         vacancies (list):
             If list is totally empty, all vacancies are considered (default).
@@ -133,17 +132,6 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
     """
     fws, parents = [], []
 
-    if calc_type in ['scan', 'hse']:
-        if hybrid_run_for_gap_corr and calc_type == 'hse':
-            raise ValueError('running hybrid_run_for_gap_corr does not make sense '
-                             'with a hybrid structure defect run!')
-
-        if not rerelax_flag:
-            raise ValueError('trying to run SCAN or Hybrid run without running structure! '
-                             'This will induce pulay stresses for defects - do not do this.')
-    elif calc_type != 'normal':
-        raise ValueError('ERROR: calc_type = {} is not one of following: [normal, scan, hse]'.format(calc_type))
-
     #force optimization and dielectric calculations with primitive structure for expediency
     prim_structure = SpacegroupAnalyzer(structure).find_primitive()
 
@@ -151,12 +139,6 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
         vis = MPRelaxSet(prim_structure, user_incar_settings={"EDIFF": .00001, "EDIFFG": -0.001, "ISMEAR":0,
                                                          "SIGMA":0.05, "NSW": 100, "ISIF": 3, "LCHARG":False,
                                                          "ISPIN":2,  "ISYM":2, "LAECHG":False})
-
-        if calc_type == 'scan':
-            job_type = "metagga_opt_run"
-            #TODO: confirm that SCAN volume relaxation occurs
-        else:
-            job_type = "double_relaxation_run"
 
         rerelax_fw = OptimizeFW(prim_structure, vasp_input_set=vis,
                                  vasp_cmd=vasp_cmd, db_file=db_file,
@@ -167,30 +149,24 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
         fws.append(rerelax_fw)
         parents = [rerelax_fw]
 
-        if calc_type == 'hse':
-            rerelax_fw_hse = HSEBSFW(structure=prim_structure, vasp_input_set=vis,
-                                 parents=parents, mode="uniform",
-                                 vasp_cmd=vasp_cmd, db_file=db_file)
-            #modify firework to be cell relaxation as well
-            #TODO: confirm that hse volume relaxation occurs
-            wf = Workflow( rerelax_fw_hse)
-            wf = add_modify_incar(wf, modify_incar_params={"ISIF": 3, "NSW": 100})
-            fws.append( wf.fws[0])
-            parents.append( wf.fws[0])
-
         if hybrid_run_for_gap_corr: #only run HSEBSFW hybrid workflow here if re-relaxed since it requires a copy-over optimized structure
-            hse_fw = HSEBSFW(structure=prim_structure, parents=parents, name="hse", vasp_cmd=vasp_cmd, db_file=db_file)
+            if job_type == 'hse':
+                raise ValueError("Running Hybrid workflow for bandgap does not make "
+                                 "sense since you have opted to run defects with hybrid.")
+            hse_fw = HSEBSFW(structure=prim_structure, parents=parents, name="hse-BS", vasp_cmd=vasp_cmd, db_file=db_file)
             fws.append( hse_fw)
 
     elif hybrid_run_for_gap_corr: #if not re-relaxing structure but want hybrid then need to run a static primitive struct calc initial
+        if job_type == 'hse':
+            raise ValueError("Running Hybrid workflow for bandgap does not make "
+                             "sense since you have opted to run defects with hybrid.")
         stat_gap_fw = StaticFW(structure=prim_structure, name="{} gap gga initialize".format(structure.composition.reduced_formula),
                                 vasp_cmd=vasp_cmd, db_file=db_file)
         fws.append( stat_gap_fw)
-        hse_fw = HSEBSFW(structure=prim_structure, parents=stat_gap_fw, name="hse", vasp_cmd=vasp_cmd, db_file=db_file)
+        hse_fw = HSEBSFW(structure=prim_structure, parents=stat_gap_fw, name="hse-BS", vasp_cmd=vasp_cmd, db_file=db_file)
         fws.append( hse_fw)
 
-
-    if diel_flag: #note dielectric is only done with GGA
+    if diel_flag: #note dielectric DFPT run is only done with GGA
         copy_out = True if parents else False
         diel_fw = DFPTFW(structure=prim_structure, name='ionic dielectric', vasp_cmd=vasp_cmd, copy_vasp_outputs=copy_out,
                          db_file=db_file, parents=parents)
@@ -202,11 +178,12 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
 
     t.append(DefectSetupFiretask(structure=prim_structure, cellmax=n_max, conventional=conventional,
                                  vasp_cmd=vasp_cmd, db_file=db_file, user_incar_settings=user_incar_settings,
-                                 calc_type=calc_type,
+                                 job_type=job_type,
                                  vacancies=vacancies, substitutions=substitutions,
                                  interstitials=interstitials, initial_charges=initial_charges))
 
-    setup_fw = Firework(t,parents = parents, name="{} Defect Supercell Setup".format(structure.composition.reduced_formula))
+    fw_name = "{} {} Defect Supercell Setup".format(structure.composition.reduced_formula, job_type)
+    setup_fw = Firework(t,parents = parents, name=fw_name)
     fws.append(setup_fw)
 
     if run_analysis:
