@@ -319,7 +319,33 @@ class TestDefectSetupFiretask(PymatgenTest):
                              ['Interstitial', 'H', None, 0]]
         self._verify_defect_list( def_task_list, expected_defects)
 
+    def test_defect_scan_setup(self):
+        struct = PymatgenTest.get_structure("CsCl")
 
+        #test standard defect setup with defaults for SCAN functional
+        ft = DefectSetupFiretask( structure=struct, cellmax=100,
+                                 job_type='metagga_opt_run')
+
+        def_set = ft.run_task({}).as_dict()['detours']
+
+        #test that name is appropriately labeled and will be SCAN type
+        for defect_fw in def_set:
+            self.assertTrue('metagga_opt_run' in  defect_fw['name'])
+            self.assertEqual('metagga_opt_run', defect_fw['spec']['_tasks'][1]['job_type'])
+
+    def test_defect_hse_setup(self):
+        struct = PymatgenTest.get_structure("CsCl")
+
+        #test standard defect setup with defaults for HSE functional
+        ft = DefectSetupFiretask( structure=struct, cellmax=100,
+                                 job_type='hse')
+
+        def_set = ft.run_task({}).as_dict()['detours']
+
+        #test that name is appropriately labeled and will be hse type
+        for defect_fw in def_set:
+            self.assertTrue( 'hse' in  defect_fw['name'])
+            self.assertEqual('hse', defect_fw['spec']['_tasks'][1]['job_type'])
 
 class TestDefectAnalysisFireTask(PymatgenTest):
 
