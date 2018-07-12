@@ -33,7 +33,7 @@ from pymatgen.analysis.defects.generators import VacancyGenerator, SubstitutionG
 from fireworks import FiretaskBase, FWAction, explicit_serialize
 
 from atomate.utils.utils import get_logger
-from atomate.vasp.fireworks.core import TransmuterFW, HSETransmuterFW
+from atomate.vasp.fireworks.core import TransmuterFW
 
 from monty.serialization import dumpfn
 from monty.json import MontyEncoder
