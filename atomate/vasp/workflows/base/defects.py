@@ -12,7 +12,7 @@ This module defines a workflow for charged defects in non-metals:
 
 from fireworks import Workflow, Firework
 
-from pymatgen.io.vasp.sets import MPRelaxSet
+from pymatgen.io.vasp.sets import MPRelaxSet, MVLScanRelaxSet
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 from atomate.vasp.powerups import add_modify_incar
@@ -136,11 +136,15 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
     prim_structure = SpacegroupAnalyzer(structure).find_primitive()
 
     if rerelax_flag:
-        vis = MPRelaxSet(prim_structure, user_incar_settings={"EDIFF": .00001, "EDIFFG": -0.001, "ISMEAR":0,
-                                                         "SIGMA":0.05, "NSW": 100, "ISIF": 3, "LCHARG":False,
-                                                         "ISPIN":2,  "ISYM":2, "LAECHG":False})
+        incar_settings = {"EDIFF": .00001, "EDIFFG": -0.001, "ISMEAR":0,
+                          "SIGMA":0.05, "NSW": 100, "ISIF": 3,
+                          "LCHARG":False, "ISPIN":2,  "ISYM":2, "LAECHG":False}
+        if job_type == 'metagga_opt_run':
+            vis = MVLScanRelaxSet( prim_structure, user_incar_settings=incar_settings)
+        else:
+            vis = MPRelaxSet( prim_structure, user_incar_settings=incar_settings)
 
-        rerelax_fw = OptimizeFW(prim_structure, vasp_input_set=vis,
+        rerelax_fw = OptimizeFW( prim_structure, vasp_input_set=vis,
                                  vasp_cmd=vasp_cmd, db_file=db_file,
                                  job_type=job_type,
                                  auto_npar=">>auto_npar<<",

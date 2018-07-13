@@ -24,7 +24,7 @@ from monty.json import jsanitize
 
 from pymatgen.io.vasp import Vasprun, Locpot, Poscar
 from pymatgen import MPRester
-from pymatgen.io.vasp.sets import MPRelaxSet, MPStaticSet
+from pymatgen.io.vasp.sets import MPRelaxSet, MVLScanRelaxSet
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.entries.computed_entries import ComputedStructureEntry
 from pymatgen.analysis.defects.generators import VacancyGenerator, SubstitutionGenerator, \
@@ -196,7 +196,14 @@ class DefectSetupFiretask(FiretaskBase):
         bulk_incar_settings = {"EDIFF":.0001, "EDIFFG": 0.001, "ISMEAR":0, "SIGMA":0.05, "NSW": 0, "ISIF": 2,
                                "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LAECHG":False, "LWAVE": True}
         bulk_incar_settings.update( user_incar_settings)
-        vis = MPStaticSet(bulk_supercell, user_incar_settings =  bulk_incar_settings)
+
+        if job_type == 'metagga_opt_run':
+            vis = MVLScanRelaxSet( bulk_supercell, reciprocal_density=100,
+                                   user_incar_settings=bulk_incar_settings)
+        else:
+            reciprocal_density = 50 if job_type == 'hse' else 100
+            vis = MPRelaxSet( bulk_supercell, reciprocal_density=reciprocal_density,
+                              user_incar_settings=bulk_incar_settings)
 
         supercell_size = sc_scale * np.identity(3)
         bulk_tag = "{}:{}bulk_supercell_{}atoms".format(structure.composition.reduced_formula, job_type, num_atoms)
@@ -366,9 +373,16 @@ class DefectSetupFiretask(FiretaskBase):
             for charge in defcalc['charges']:
                 chgdstruct = defect_sc.copy()
                 chgdstruct.set_charge(charge)  #NOTE that the charge will be reflected in charge of the MPStaticSets's INCAR
-                defect_input_set = MPStaticSet(chgdstruct, reciprocal_density=100, #this is default reciprocal kpt density
-                                               user_incar_settings=stdrd_defect_incar_settings.copy(),
-                                               use_structure_charge=True)
+
+                if job_type == 'metagga_opt_run':
+                    defect_input_set = MVLScanRelaxSet( chgdstruct, reciprocal_density=100,
+                                                        user_incar_settings=stdrd_defect_incar_settings.copy(),
+                                                        use_structure_charge=True)
+                else:
+                    reciprocal_density = 50 if job_type == 'hse' else 100
+                    defect_input_set = MPRelaxSet( chgdstruct, reciprocal_density=reciprocal_density,
+                                                   user_incar_settings=bulk_incar_settings,
+                                                   use_structure_charge=True)
 
                 defect_for_trans_param = defect.copy()
                 defect_for_trans_param.set_charge(charge)
