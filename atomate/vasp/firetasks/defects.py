@@ -135,7 +135,7 @@ class DefectSetupFiretask(FiretaskBase):
                     ex 2. {'Ga': ['Sb'] } in GaAs structure will only produce Antimonide_on_Gallium substitutions
 
             if NO antisites or substitutions are desired, then just add an empty dict
-                ex. {None:{}}  yields no antisites or subs
+                ex. {'None':{}}  yields no antisites or subs
 
 
         interstitials (list):

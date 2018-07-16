@@ -84,7 +84,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
                     ex 2. {'Ga': ['Sb'] } in GaAs structure will only produce Antimonide_on_Gallium substitutions
 
             if NO antisites or substitutions are desired, then just add an empty dict
-                ex. {None:{}}  yields no antisites or subs
+                ex. {'None':{}}  yields no antisites or subs
 
 
         interstitials (list):
@@ -148,7 +148,9 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
                               user_incar_settings=incar_settings,
                               user_kpoints_settings={"reciprocal_density": kpt_density})
 
-        rerelax_fw = OptimizeFW( prim_structure, vasp_input_set=vis,
+        rerelax_fw = OptimizeFW( prim_structure,
+                                 name=job_type+"structure optimization",
+                                 vasp_input_set=vis,
                                  vasp_cmd=vasp_cmd, db_file=db_file,
                                  job_type=job_type,
                                  auto_npar=">>auto_npar<<",
