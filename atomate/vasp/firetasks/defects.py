@@ -379,13 +379,13 @@ class DefectSetupFiretask(FiretaskBase):
                 if job_type == 'metagga_opt_run':
                     defect_input_set = MVLScanRelaxSet( chgdstruct,
                                                         user_incar_settings=stdrd_defect_incar_settings.copy(),
-                                                        reciprocal_density={"reciprocal_density": 100},
+                                                        user_kpoints_settings={"reciprocal_density": 100},
                                                         use_structure_charge=True)
                 else:
                     reciprocal_density = 50 if job_type == 'hse' else 100
                     defect_input_set = MPRelaxSet( chgdstruct,
                                                    user_incar_settings=bulk_incar_settings,
-                                                   reciprocal_density={"reciprocal_density": reciprocal_density},
+                                                   user_kpoints_settings={"reciprocal_density": reciprocal_density},
                                                    use_structure_charge=True)
 
                 defect_for_trans_param = defect.copy()
