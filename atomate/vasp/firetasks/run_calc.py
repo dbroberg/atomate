@@ -181,6 +181,7 @@ class RunVaspCustodian(FiretaskBase):
             incar_update = {  "ALGO": "All", "HFSCREEN": 0.2, "ICHARG": 1,
                               "LHFCALC": True, "LREAL": "AUTO", "PREC": "Accurate",
                               "PRECFOCK": "Fast"}
+            # low_kpts_dict = kpts.as_dict()
             settings_overide_hse = [
                 {"dict": "INCAR",
                  "action": {"_set": incar_update}},

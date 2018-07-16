@@ -142,13 +142,15 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
         if job_type == 'metagga_opt_run':
             vis = MVLScanRelaxSet( prim_structure, user_incar_settings=incar_settings)
         else:
-            vis = MPRelaxSet( prim_structure, user_incar_settings=incar_settings)
+            kpt_density = 64 if job_type == 'normal' else 50
+            vis = MPRelaxSet( prim_structure,
+                              user_incar_settings=incar_settings,
+                              user_kpoints_settings={"reciprocal_density": kpt_density})
 
         rerelax_fw = OptimizeFW( prim_structure, vasp_input_set=vis,
                                  vasp_cmd=vasp_cmd, db_file=db_file,
                                  job_type=job_type,
                                  auto_npar=">>auto_npar<<",
-                                 half_kpts_first_relax=True,
                                  parents=None)
         fws.append(rerelax_fw)
         parents = [rerelax_fw]
