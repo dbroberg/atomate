@@ -198,12 +198,14 @@ class DefectSetupFiretask(FiretaskBase):
         bulk_incar_settings.update( user_incar_settings)
 
         if job_type == 'metagga_opt_run':
-            vis = MVLScanRelaxSet( bulk_supercell, reciprocal_density=100,
-                                   user_incar_settings=bulk_incar_settings)
+            vis = MVLScanRelaxSet( bulk_supercell,
+                                   user_incar_settings=bulk_incar_settings,
+                                   user_kpoints_settings={"reciprocal_density": 100})
         else:
             reciprocal_density = 50 if job_type == 'hse' else 100
-            vis = MPRelaxSet( bulk_supercell, reciprocal_density=reciprocal_density,
-                              user_incar_settings=bulk_incar_settings)
+            vis = MPRelaxSet( bulk_supercell,
+                              user_incar_settings=bulk_incar_settings,
+                              user_kpoints_settings={"reciprocal_density": reciprocal_density})
 
         supercell_size = sc_scale * np.identity(3)
         bulk_tag = "{}:{}bulk_supercell_{}atoms".format(structure.composition.reduced_formula, job_type, num_atoms)
@@ -372,16 +374,18 @@ class DefectSetupFiretask(FiretaskBase):
             #iterate over all charges to be run
             for charge in defcalc['charges']:
                 chgdstruct = defect_sc.copy()
-                chgdstruct.set_charge(charge)  #NOTE that the charge will be reflected in charge of the MPStaticSets's INCAR
+                chgdstruct.set_charge(charge)  #NOTE that the charge will be reflected in NELECT of INCAR because use_structure_charge=True
 
                 if job_type == 'metagga_opt_run':
-                    defect_input_set = MVLScanRelaxSet( chgdstruct, reciprocal_density=100,
+                    defect_input_set = MVLScanRelaxSet( chgdstruct,
                                                         user_incar_settings=stdrd_defect_incar_settings.copy(),
+                                                        reciprocal_density={"reciprocal_density": 100},
                                                         use_structure_charge=True)
                 else:
                     reciprocal_density = 50 if job_type == 'hse' else 100
-                    defect_input_set = MPRelaxSet( chgdstruct, reciprocal_density=reciprocal_density,
+                    defect_input_set = MPRelaxSet( chgdstruct,
                                                    user_incar_settings=bulk_incar_settings,
+                                                   reciprocal_density={"reciprocal_density": reciprocal_density},
                                                    use_structure_charge=True)
 
                 defect_for_trans_param = defect.copy()
