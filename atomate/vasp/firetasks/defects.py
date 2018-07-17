@@ -194,7 +194,7 @@ class DefectSetupFiretask(FiretaskBase):
         user_incar_settings = self.get("user_incar_settings", {})
 
         bulk_incar_settings = {"EDIFF":.0001, "EDIFFG": 0.001, "ISMEAR":0, "SIGMA":0.05, "NSW": 0, "ISIF": 2,
-                               "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LAECHG":False, "LWAVE": True}
+                               "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LWAVE": True}
         bulk_incar_settings.update( user_incar_settings)
 
         if job_type == 'metagga_opt_run':
@@ -364,7 +364,7 @@ class DefectSetupFiretask(FiretaskBase):
 
         stdrd_defect_incar_settings = {"EDIFF":.0001, "EDIFFG":0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05,
                                        "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 100, "ISIF": 2,
-                                       "LAECHG":False, "ADDGRID": True, "LWAVE": True}
+                                       "LAECHG":False, "LWAVE": True}
         stdrd_defect_incar_settings.update( user_incar_settings)
 
         # now that def_structs is assembled, set up Transformation FW for all defect + charge combinations

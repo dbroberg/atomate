@@ -136,9 +136,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
     prim_structure = SpacegroupAnalyzer(structure).find_primitive()
 
     if rerelax_flag:
-        incar_settings = {"EDIFF": .00001, "EDIFFG": -0.001, "ISMEAR":0,
-                          "SIGMA":0.05, "NSW": 100, "ISIF": 3,
-                          "LCHARG":False, "ISPIN":2,  "ISYM":2, "LAECHG":False}
+        incar_settings = {"ISIF": 3, "ISPIN":2, "ISYM":2, "LAECHG":False, 'LVHAR': False}
         if job_type == 'metagga_opt_run':
             vis = MVLScanRelaxSet( prim_structure, user_incar_settings=incar_settings,
                               user_kpoints_settings={"reciprocal_density": 100})
