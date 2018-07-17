@@ -538,7 +538,8 @@ class TransmuterFW(Firework):
                  vasp_input_set=None, prev_calc_dir=None,
                  name="structure transmuter", vasp_cmd="vasp",
                  copy_vasp_outputs=True, db_file=None, job_type="normal",
-                 parents=None, override_default_vasp_params=None, **kwargs):
+                 parents=None, bandstructure_mode=None,
+                 override_default_vasp_params=None, **kwargs):
         """
         Apply the transformations to the input structure, write the input set corresponding
         to the transformed structure, and run vasp on them.  Note that if a transformation yields
@@ -559,6 +560,9 @@ class TransmuterFW(Firework):
             prev_calc_dir (str): Path to a previous calculation to copy from
             db_file (string): Path to file specifying db credentials.
             parents (Firework): Parents of this particular Firework. FW or list of FWS.
+            bandstructure_mode (str): Set to "uniform" for uniform band structure.
+                Set to "line" for line mode. If not set, band structure will not
+                be parsed.
             override_default_vasp_params (dict): additional user input settings for vasp_input_set.
             \*\*kwargs: Other kwargs that are passed to Firework.__init__.
         """
@@ -603,7 +607,8 @@ class TransmuterFW(Firework):
                               "task_label": name,
                               "transmuter": {"transformations": transformations,
                                              "transformation_params": transformation_params}
-                          }))
+                          },
+                          bandstructure_mode=bandstructure_mode))
 
         super(TransmuterFW, self).__init__(t, parents=parents,
                                            name=fw_name, **kwargs)

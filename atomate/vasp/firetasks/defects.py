@@ -231,6 +231,8 @@ class DefectSetupFiretask(FiretaskBase):
         # 'charges': list of charges to run}
 
         #TODO add ability to include perturbing function to break local symmetry around defect
+        #TODO: fix bug where if multiple elements are added you generate same defect multiple times..
+        #TODO: add ability to do full manual insertion of defect type for subs and vacs (similar to manual insertion of defects for interstitials)
         if not vacancies:
             #default: generate all vacancies...
             b_struct = structure.copy()
@@ -403,7 +405,8 @@ class DefectSetupFiretask(FiretaskBase):
                                        vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
                                        copy_vasp_outputs=False,
                                        db_file=self.get("db_file", ">>db_file<<"),
-                                       job_type=job_type)
+                                       job_type=job_type,
+                                       bandstructure_mode="auto")
 
                 fws.append(fw)
 
