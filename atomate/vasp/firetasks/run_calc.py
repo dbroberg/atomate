@@ -188,11 +188,11 @@ class RunVaspCustodian(FiretaskBase):
                 {"file": "CONTCAR",
                  "action": {"_file_copy": {"dest": "POSCAR"}}}]
 
-            jobs = [VaspJob(vasp_cmd, final=False, suffix=".ggarelax1",
+            jobs = [VaspJob(vasp_cmd, final=False, suffix=".relax1",
                             auto_npar=auto_npar, auto_continue=True,
                             gamma_vasp_cmd=gamma_vasp_cmd,
                             settings_override=None),
-                    VaspJob(vasp_cmd, final=True, backup=False, suffix=".hserelax2",
+                    VaspJob(vasp_cmd, final=True, backup=False, suffix=".relax2",
                             auto_npar=auto_npar, auto_continue=True,
                             gamma_vasp_cmd=gamma_vasp_cmd,
                             settings_override=settings_overide_hse)]
