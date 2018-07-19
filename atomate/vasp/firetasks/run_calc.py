@@ -177,25 +177,34 @@ class RunVaspCustodian(FiretaskBase):
             jobs = [VaspNEBJob(vasp_cmd, final=False, auto_npar=auto_npar,
                                gamma_vasp_cmd=gamma_vasp_cmd)]
         elif job_type == "hse":
-            # construct jobs as a GGA relaxation followed by a HSE relaxation
-            incar_update = {  "ALGO": "All", "HFSCREEN": 0.2, "ICHARG": 1,
-                              "LHFCALC": True, "LREAL": "AUTO", "PREC": "Accurate",
-                              "PRECFOCK": "Fast"}
-            # low_kpts_dict = kpts.as_dict()
-            settings_overide_hse = [
-                {"dict": "INCAR",
-                 "action": {"_set": incar_update}},
-                {"file": "CONTCAR",
-                 "action": {"_file_copy": {"dest": "POSCAR"}}}]
+            # construct jobs as a GGA precondition followed by an HSE relaxation
 
-            jobs = [VaspJob(vasp_cmd, final=False, suffix=".relax1",
+            incar = Incar.from_file("INCAR")
+            nsw = incar.get("NSW", 0)
+            lwave = incar.get("LWAVE", False)
+            
+            # Pre optimze WAVECAR and structure using regular GGA
+            pre_opt_setings = [{"dict": "INCAR",
+                                "action": {"_set": {"LWAVE": True,
+                                                    "NSW": 0}}}]
+            jobs = [VaspJob(vasp_cmd, final=False, suffix=".precondition",
+                            auto_npar=auto_npar, auto_continue=True,
+                            settings_override=pre_opt_setings)]
+
+            hse_incar_update = {  "ALGO": "All", "HFSCREEN": 0.2, "ICHARG": 1,
+                                  "LHFCALC": True, "LREAL": "AUTO", "PREC": "Accurate",
+                                  "PRECFOCK": "Fast", "NSW": nsw, "ISTART": 1, "LWAVE": lwave}
+            hse_opt_setings = [{"dict": "INCAR",
+                                "action": {"_set": hse_incar_update}}]
+
+            jobs = [VaspJob(vasp_cmd, final=False, suffix=".precondition",
                             auto_npar=auto_npar, auto_continue=True,
                             gamma_vasp_cmd=gamma_vasp_cmd,
-                            settings_override=None),
-                    VaspJob(vasp_cmd, final=True, backup=False, suffix=".relax2",
+                            settings_override=pre_opt_setings),
+                    VaspJob(vasp_cmd, final=True, backup=False,
                             auto_npar=auto_npar, auto_continue=True,
                             gamma_vasp_cmd=gamma_vasp_cmd,
-                            settings_override=settings_overide_hse)]
+                            settings_override=hse_opt_setings)]
         else:
             raise ValueError("Unsupported job type: {}".format(job_type))
 
