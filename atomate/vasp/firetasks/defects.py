@@ -208,7 +208,7 @@ class DefectSetupFiretask(FiretaskBase):
                               user_kpoints_settings={"reciprocal_density": reciprocal_density})
 
         supercell_size = sc_scale * np.identity(3)
-        bulk_tag = "{}:{}bulk_supercell_{}atoms".format(structure.composition.reduced_formula, job_type, num_atoms)
+        bulk_tag = "{}:{}_bulk_supercell_{}atoms".format(structure.composition.reduced_formula, job_type, num_atoms)
         stat_fw = TransmuterFW(name = bulk_tag, structure=structure,
                                transformations=['SupercellTransformation'],
                                transformation_params=[{"scaling_matrix": supercell_size}],
@@ -386,7 +386,7 @@ class DefectSetupFiretask(FiretaskBase):
                 else:
                     reciprocal_density = 50 if job_type == 'hse' else 100
                     defect_input_set = MPRelaxSet( chgdstruct,
-                                                   user_incar_settings=bulk_incar_settings,
+                                                   user_incar_settings=stdrd_defect_incar_settings.copy(),
                                                    user_kpoints_settings={"reciprocal_density": reciprocal_density},
                                                    use_structure_charge=True)
 
@@ -396,7 +396,7 @@ class DefectSetupFiretask(FiretaskBase):
                 chgdef_trans_params = [{"scaling_matrix": supercell_size,
                                         "defect": defect_for_trans_param}]
 
-                def_tag = "{}:{}{}_{}_{}atoms".format(structure.composition.reduced_formula, job_type,
+                def_tag = "{}:{}_{}_{}_{}atoms".format(structure.composition.reduced_formula, job_type,
                                                       defect.name, charge, num_atoms)
                 fw = TransmuterFW(name = def_tag, structure=structure,
                                        transformations=chgdef_trans,
