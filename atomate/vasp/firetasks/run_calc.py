@@ -182,7 +182,7 @@ class RunVaspCustodian(FiretaskBase):
             incar = Incar.from_file("INCAR")
             nsw = incar.get("NSW", 0)
             lwave = incar.get("LWAVE", False)
-            
+
             # Pre optimze WAVECAR and structure using regular GGA
             pre_opt_setings = [{"dict": "INCAR",
                                 "action": {"_set": {"LWAVE": True,

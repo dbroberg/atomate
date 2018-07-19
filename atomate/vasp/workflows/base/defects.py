@@ -174,9 +174,21 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
         fws.append( hse_fw)
 
     if diel_flag: #note dielectric DFPT run is only done with GGA
-        copy_out = True if parents else False
+        user_incar_settings = {}
+        if parents:
+            copy_out = True
+            #need to revert incar settings which were set for scan and hybrid relaxation schemes
+            if job_type == 'hse':
+                user_incar_settings.update( {'HFSCREEN': None, 'LHFCALC': False,
+                                             "PRECFOCK": "Normal"})
+            elif job_type == 'metagga_opt_run':
+                user_incar_settings.update( {'ADDGRID': False, 'ISTART': 0,
+                                             'LASPH': False, 'METAGGA': None})
+        else:
+            copy_out = False
+
         diel_fw = DFPTFW(structure=prim_structure, name='ionic dielectric', vasp_cmd=vasp_cmd, copy_vasp_outputs=copy_out,
-                         db_file=db_file, parents=parents)
+                         db_file=db_file, parents=parents, user_incar_settings=user_incar_settings)
         fws.append( diel_fw)
 
     t = []
