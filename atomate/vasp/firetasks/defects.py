@@ -364,9 +364,9 @@ class DefectSetupFiretask(FiretaskBase):
                     def_structs.append({'charges': charges, 'defect': elt_val.copy()})
 
 
-        stdrd_defect_incar_settings = {"EDIFF":.0001, "EDIFFG":0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05,
-                                       "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 100, "ISIF": 2,
-                                       "LAECHG":False, "LWAVE": True}
+        stdrd_defect_incar_settings = {"EDIFF": 0.0001, "EDIFFG": 0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05,
+                                       "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 100,
+                                       "NELM": 60, "ISIF": 2, "LAECHG":False, "LWAVE": True}
         stdrd_defect_incar_settings.update( user_incar_settings)
 
         # now that def_structs is assembled, set up Transformation FW for all defect + charge combinations
