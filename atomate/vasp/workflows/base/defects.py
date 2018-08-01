@@ -212,7 +212,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
         analysis_fw = DefectAnalysisFW(prim_structure, mpid=mpid, parents=analysis_parents)
         fws.append(analysis_fw)
 
-    wfname = "{}:{}".format(structure.composition.reduced_formula, name)
+    wfname = "{}:{}_{}".format(structure.composition.reduced_formula, job_type, name)
     final_wf = Workflow(fws, name=wfname)
 
     return final_wf
