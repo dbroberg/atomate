@@ -110,6 +110,8 @@ class DefectSetupFiretask(FiretaskBase):
         user_incar_settings (dict):
             a dictionary of incar settings specified by user for both bulk and defect supercells
             note that charges do not need to be set in this dicitionary
+        user_kpoint_settings (dict or Kpoints pmg object):
+            a dictionary of kpoint settings specific by user OR an Actual Kpoint set to be used for the calculation
 
         job_type (str): type of defect calculation that user desires to run
             default is 'normal' which runs a GGA defect calculation
@@ -192,20 +194,24 @@ class DefectSetupFiretask(FiretaskBase):
         num_atoms = len(bulk_supercell)
 
         user_incar_settings = self.get("user_incar_settings", {})
+        user_kpoints_settings = self.get("user_kpoints_settings", {})
 
         bulk_incar_settings = {"EDIFF":.0001, "EDIFFG": 0.001, "ISMEAR":0, "SIGMA":0.05, "NSW": 0, "ISIF": 2,
                                "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LWAVE": True}
         bulk_incar_settings.update( user_incar_settings)
 
         if job_type == 'metagga_opt_run':
+            bulk_incar_settings['ALGO'] = "All"
+            kpoints_settings = user_kpoints_settings if user_kpoints_settings else {"reciprocal_density": 100}
             vis = MVLScanRelaxSet( bulk_supercell,
                                    user_incar_settings=bulk_incar_settings,
-                                   user_kpoints_settings={"reciprocal_density": 100})
+                                   user_kpoints_settings=kpoints_settings)
         else:
             reciprocal_density = 50 if job_type == 'hse' else 100
+            kpoints_settings = user_kpoints_settings if user_kpoints_settings else {"reciprocal_density": reciprocal_density}
             vis = MPRelaxSet( bulk_supercell,
                               user_incar_settings=bulk_incar_settings,
-                              user_kpoints_settings={"reciprocal_density": reciprocal_density})
+                              user_kpoints_settings=kpoints_settings)
 
         supercell_size = sc_scale * np.identity(3)
         bulk_tag = "{}:{}_bulk_supercell_{}atoms".format(structure.composition.reduced_formula, job_type, num_atoms)
@@ -379,15 +385,18 @@ class DefectSetupFiretask(FiretaskBase):
                 chgdstruct.set_charge(charge)  #NOTE that the charge will be reflected in NELECT of INCAR because use_structure_charge=True
 
                 if job_type == 'metagga_opt_run':
+                    stdrd_defect_incar_settings['ALGO'] = "All"
+                    kpoints_settings = user_kpoints_settings if user_kpoints_settings else {"reciprocal_density": 100}
                     defect_input_set = MVLScanRelaxSet( chgdstruct,
                                                         user_incar_settings=stdrd_defect_incar_settings.copy(),
-                                                        user_kpoints_settings={"reciprocal_density": 100},
+                                                        user_kpoints_settings=kpoints_settings,
                                                         use_structure_charge=True)
                 else:
                     reciprocal_density = 50 if job_type == 'hse' else 100
+                    kpoints_settings = user_kpoints_settings if user_kpoints_settings else {"reciprocal_density": reciprocal_density}
                     defect_input_set = MPRelaxSet( chgdstruct,
                                                    user_incar_settings=stdrd_defect_incar_settings.copy(),
-                                                   user_kpoints_settings={"reciprocal_density": reciprocal_density},
+                                                   user_kpoints_settings=kpoints_settings,
                                                    use_structure_charge=True)
 
                 defect_for_trans_param = defect.copy()
