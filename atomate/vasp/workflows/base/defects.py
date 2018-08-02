@@ -31,7 +31,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
                         conventional=True, diel_flag=True, n_max=128, job_type='normal',
                         vacancies=[], substitutions={}, interstitials={},
                         initial_charges={}, rerelax_flag=False, hybrid_run_for_gap_corr=True,
-                        run_analysis=False, user_kpoint_settings={}):
+                        run_analysis=False, user_kpoints_settings={}):
     """
     Returns a charged defect workflow
 
@@ -126,7 +126,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
             Flag to run an analysis firework at end of workflow to provide overall analysis.
             Default is False (Suggested to run own analysis to do things like add additional charge states
                 and smart parsing of defect related values)
-        user_kpoint_settings (dict or Kpoints pmg object):
+        user_kpoints_settings (dict or Kpoints pmg object):
             a dictionary of kpoint settings specific by user OR an Actual Kpoint set to be used for the supercell calculations
 
     Returns:
@@ -199,7 +199,7 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
 
     t.append(DefectSetupFiretask(structure=prim_structure, cellmax=n_max, conventional=conventional,
                                  vasp_cmd=vasp_cmd, db_file=db_file, user_incar_settings=user_incar_settings,
-                                 user_kpoint_settings=user_kpoint_settings,
+                                 user_kpoints_settings=user_kpoints_settings,
                                  job_type=job_type,
                                  vacancies=vacancies, substitutions=substitutions,
                                  interstitials=interstitials, initial_charges=initial_charges))

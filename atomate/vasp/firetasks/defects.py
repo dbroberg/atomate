@@ -110,7 +110,7 @@ class DefectSetupFiretask(FiretaskBase):
         user_incar_settings (dict):
             a dictionary of incar settings specified by user for both bulk and defect supercells
             note that charges do not need to be set in this dicitionary
-        user_kpoint_settings (dict or Kpoints pmg object):
+        user_kpoints_settings (dict or Kpoints pmg object):
             a dictionary of kpoint settings specific by user OR an Actual Kpoint set to be used for the calculation
 
         job_type (str): type of defect calculation that user desires to run
