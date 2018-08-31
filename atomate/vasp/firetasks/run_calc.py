@@ -178,7 +178,6 @@ class RunVaspCustodian(FiretaskBase):
                                gamma_vasp_cmd=gamma_vasp_cmd)]
         elif job_type == "hse":
             # construct jobs as a GGA precondition followed by an HSE relaxation
-
             incar = Incar.from_file("INCAR")
             nsw = incar.get("NSW", 0)
             lwave = incar.get("LWAVE", False)
@@ -187,9 +186,6 @@ class RunVaspCustodian(FiretaskBase):
             pre_opt_setings = [{"dict": "INCAR",
                                 "action": {"_set": {"LWAVE": True,
                                                     "NSW": 0}}}]
-            jobs = [VaspJob(vasp_cmd, final=False, suffix=".precondition",
-                            auto_npar=auto_npar, auto_continue=True,
-                            settings_override=pre_opt_setings)]
 
             hse_incar_update = {  "ALGO": "All", "HFSCREEN": 0.2, "ICHARG": 1,
                                   "LHFCALC": True, "LREAL": "AUTO", "PREC": "Accurate",
@@ -201,7 +197,8 @@ class RunVaspCustodian(FiretaskBase):
                             auto_npar=auto_npar, auto_continue=True,
                             gamma_vasp_cmd=gamma_vasp_cmd,
                             settings_override=pre_opt_setings),
-                    VaspJob(vasp_cmd, final=True, backup=False,
+                    VaspJob(vasp_cmd, final=True, suffix=".relax1",
+                            backup=False,
                             auto_npar=auto_npar, auto_continue=True,
                             gamma_vasp_cmd=gamma_vasp_cmd,
                             settings_override=hse_opt_setings)]
