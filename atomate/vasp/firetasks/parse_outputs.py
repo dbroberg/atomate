@@ -89,7 +89,8 @@ class VaspToDb(FiretaskBase):
 
         drone = VaspDrone(additional_fields=self.get("additional_fields"),
                           parse_dos=self.get("parse_dos", False),
-                          bandstructure_mode=self.get("bandstructure_mode", False))
+                          bandstructure_mode=self.get("bandstructure_mode", False),
+                          defect_wf_parsing=self.get("defect_wf_parsing", None))
 
         # assimilate (i.e., parse)
         task_doc = drone.assimilate(calc_dir)
