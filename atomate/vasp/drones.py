@@ -105,8 +105,9 @@ class VaspDrone(AbstractDrone):
             additional_fields (dict): dictionary of additional fields to add to output document
             use_full_uri (bool): converts the directory path to the full URI path
             parse_bader (bool): Run and parse Bader charge data. Defaults to True if Bader is present
-            defect_wf_parsing (Defect): If defect is provided, drone considers Procar and
-                Wavecar parsing relative to defect position for consideration of defect localization
+            defect_wf_parsing (Site): If Site is provided, drone considers Procar and
+                Wavecar parsing relative to the position of Site.
+                 Useful for consideration of defect localization
                 Defaults to None (no extra procar or wavecar parsing occurs)
         """
         self.parse_dos = parse_dos
