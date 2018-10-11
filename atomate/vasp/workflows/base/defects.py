@@ -219,3 +219,4 @@ def get_wf_chg_defects(structure, mpid=None, name="chg_defect_wf", user_incar_se
     final_wf = Workflow(fws, name=wfname)
 
     return final_wf
+
