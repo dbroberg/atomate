@@ -212,7 +212,7 @@ class VaspDrone(AbstractDrone):
                 logger.error("Bad run stats for {}.".format(fullpath))
             d["run_stats"] = run_stats
 
-            # store defect localization information
+            # store defect localization/band filling information
             if self.defect_wf_parsing:
                 #need to make sure all procars and wavecars are zipped
                 for propat in self.filter_files( fullpath, file_pattern="PROCAR").values():
@@ -231,6 +231,16 @@ class VaspDrone(AbstractDrone):
                         structure = Structure.from_dict( d_calc["output"]["structure"])
                         defect_data = parse_defect_states( structure, self.defect_wf_parsing, wavecar, procar)
                         d_calc["output"].update({"defect": defect_data})
+
+                        filename = list(vasprun_files.values())[i]
+                        vasprun_file = os.path.join(dir_name, filename)
+                        vrun = Vasprun(vasprun_file)
+                        # eigenvalues = {cnt: v for cnt, v in enumerate(vrun.eigenvalues.values())}
+                        eigenvalues = vrun.eigenvalues.copy()
+                        kpoint_weights = vrun.actual_kpoints_weights
+                        vr_eigenvalue_dict = {'eigenvalues': eigenvalues, 'kpoint_weights': kpoint_weights}
+                        d_calc["output"].update({"vr_eigenvalue_dict": vr_eigenvalue_dict})
+
 
             # reverse the calculations data order so newest calc is first
             d["calcs_reversed"].reverse()
