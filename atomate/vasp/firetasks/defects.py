@@ -24,6 +24,7 @@ from monty.json import jsanitize
 
 from pymatgen.io.vasp import Vasprun, Locpot, Poscar
 from pymatgen import MPRester
+from pymatgen.core import Structure
 from pymatgen.io.vasp.sets import MPRelaxSet, MVLScanRelaxSet
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.entries.computed_entries import ComputedStructureEntry
@@ -377,8 +378,16 @@ class DefectSetupFiretask(FiretaskBase):
 
         # now that def_structs is assembled, set up Transformation FW for all defect + charge combinations
         for defcalc in def_structs:
+            #get defect supercell and defect site for parsing purposes
             defect = defcalc['defect'].copy()
             defect_sc = defect.generate_defect_structure( supercell = supercell_size)
+            struct_for_defect_site = Structure(defect.bulk_structure.copy().lattice,
+                                               [defect.site.specie],
+                                               [defect.site.frac_coords],
+                                               to_unit_cell=True, coords_are_cartesian=False)
+            struct_for_defect_site.make_supercell(supercell_size)
+            defect_site = struct_for_defect_site[0]
+
             #iterate over all charges to be run
             for charge in defcalc['charges']:
                 chgdstruct = defect_sc.copy()
@@ -407,15 +416,16 @@ class DefectSetupFiretask(FiretaskBase):
 
                 def_tag = "{}:{}_{}_{}_{}atoms".format(structure.composition.reduced_formula, job_type,
                                                       defect.name, charge, num_atoms)
-                fw = TransmuterFW(name = def_tag, structure=structure,
-                                       transformations=chgdef_trans,
-                                       transformation_params=chgdef_trans_params,
-                                       vasp_input_set=defect_input_set,
-                                       vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
-                                       copy_vasp_outputs=False,
-                                       db_file=self.get("db_file", ">>db_file<<"),
-                                       job_type=job_type,
-                                       bandstructure_mode="auto")
+                fw = TransmuterFW( name = def_tag, structure=structure,
+                                   transformations=chgdef_trans,
+                                   transformation_params=chgdef_trans_params,
+                                   vasp_input_set=defect_input_set,
+                                   vasp_cmd=self.get("vasp_cmd", ">>vasp_cmd<<"),
+                                   copy_vasp_outputs=False,
+                                   db_file=self.get("db_file", ">>db_file<<"),
+                                   job_type=job_type,
+                                   bandstructure_mode="auto",
+                                   defect_wf_parsing=defect_site)
 
                 fws.append(fw)
 
