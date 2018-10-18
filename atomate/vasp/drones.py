@@ -240,7 +240,6 @@ class VaspDrone(AbstractDrone):
                         filename = list(vasprun_files.values())[i]
                         vasprun_file = os.path.join(dir_name, filename)
                         vrun = Vasprun(vasprun_file)
-                        # eigenvalues = {cnt: v for cnt, v in enumerate(vrun.eigenvalues.values())}
                         eigenvalues = vrun.eigenvalues.copy()
                         kpoint_weights = vrun.actual_kpoints_weights
                         vr_eigenvalue_dict = {'eigenvalues': eigenvalues, 'kpoint_weights': kpoint_weights}
