@@ -339,16 +339,16 @@ class DefectSetupFiretask(FiretaskBase):
             #default: do not include interstitial defects
             #TODO: for time savings, can reuse result of InFit intersitital finding approach since it is time consuming
 
-            def get_charges_from_inter( inter_obj):
+            def get_charges_from_inter( inter_elt):
                 inter_charges = []
                 if initial_charges:
                     if 'interstitials' in initial_charges.keys():
-                        if elt_type in initial_charges['interstitials']:
+                        if inter_elt in initial_charges['interstitials']:
                             #NOTE if more than one type of interstitial for a given specie, this will assign same charges to all
-                            inter_charges = initial_charges['interstitials'][elt_type]
+                            inter_charges = initial_charges['interstitials'][inter_elt]
 
                 if not len(inter_charges):
-                    SCG = SimpleChargeGenerator(inter_obj)
+                    SCG = SimpleChargeGenerator(inter_elt)
                     inter_charges = [v.charge for v in SCG]
                 return inter_charges
 
@@ -367,8 +367,9 @@ class DefectSetupFiretask(FiretaskBase):
                         charges = get_charges_from_inter( inter)
                         def_structs.append({'charges': charges, 'defect': inter.copy()})
                 else:
-                    charges = get_charges_from_inter( elt_val)
+                    charges = get_charges_from_inter( elt_type)
                     def_structs.append({'charges': charges, 'defect': elt_val.copy()})
+                    #TODO: this should raise ValueError if defect object's bulk structure is not same as structure being used for transformation
 
 
         stdrd_defect_incar_settings = {"EDIFF": 0.0001, "EDIFFG": 0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05,
