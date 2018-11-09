@@ -266,8 +266,8 @@ class GetInterpolatedPOSCAR(FiretaskBase):
 
         #decompress CONTCAR at start and end paths if applicable
         from monty.shutil import decompress_file
-        for pat in [self["start"], self["end"]]:
-            calc_loc = get_calc_loc(self["start"], fw_spec["calc_locs"])
+        for start_end in [self["start"], self["end"]]:
+            calc_loc = get_calc_loc( start_end, fw_spec["calc_locs"])
             print(calc_loc)
             contcar_path = os.path.join( calc_loc["path"], 'CONTCAR.gz')
             if os.path.exists( contcar_path):
