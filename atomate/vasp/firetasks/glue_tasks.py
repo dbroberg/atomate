@@ -135,7 +135,7 @@ class CopyVaspOutputs(CopyFiles):
                         f_out.writelines(file_content)
                     f.close()
                     os.remove(dest_path + gz_ext)
-                else:
+                else: #WAVECAR unzipping has issues with decompressing in above manner... monty takes care of issue better?
                     from monty.shutil import decompress_file
                     decompress_file( dest_path + gz_ext)
 
@@ -263,6 +263,14 @@ class GetInterpolatedPOSCAR(FiretaskBase):
         interpolate_folder = 'interpolate'
         if not os.path.exists(os.path.join(os.getcwd(), interpolate_folder)):
             os.makedirs(os.path.join(os.getcwd(), interpolate_folder))
+
+        #decompress CONTCAR at start and end paths if applicable
+        from monty.shutil import decompress_file
+        for pat in [self["start"], self["end"]]:
+            calc_loc = get_calc_loc(self["start"], fw_spec["calc_locs"])
+            contcar_path = os.path.join( calc_loc, 'CONTCAR.gz')
+            if os.path.exists( contcar_path):
+                decompress_file( contcar_path)
 
         # use method of GrabFilesFromCalcLoc to grab files from previous locations.
         CopyFilesFromCalcLoc(calc_dir=None, calc_loc=self["start"],
