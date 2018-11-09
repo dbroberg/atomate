@@ -90,13 +90,7 @@ class CopyVaspOutputs(CopyFiles):
                         filesystem=self.get("filesystem", None),
                         files_to_copy=files_to_copy, from_path_dict=calc_loc)
         # do the copying
-        try:
-            self.copy_files()
-        except:
-            print(calc_loc)
-            for u in files_to_copy:
-                print(u)
-            raise ValueError("Danny: {}".format( calc_loc, files_to_copy))
+        self.copy_files()
 
     def copy_files(self):
         all_files = self.fileclient.listdir(self.from_dir)
@@ -134,12 +128,16 @@ class CopyVaspOutputs(CopyFiles):
             # unzip the .gz if needed
             if gz_ext in ['.gz', ".GZ"]:
                 # unzip dest file
-                f = gzip.open(dest_path + gz_ext, 'rt')
-                file_content = f.read()
-                with open(dest_path, 'w') as f_out:
-                    f_out.writelines(file_content)
-                f.close()
-                os.remove(dest_path + gz_ext)
+                if 'WAVECAR' not in dest_path:
+                    f = gzip.open(dest_path + gz_ext, 'rt')
+                    file_content = f.read()
+                    with open(dest_path, 'w') as f_out:
+                        f_out.writelines(file_content)
+                    f.close()
+                    os.remove(dest_path + gz_ext)
+                else:
+                    from monty.shutil import decompress_file
+                    decompress_file( dest_path + gz_ext)
 
 
 @explicit_serialize
