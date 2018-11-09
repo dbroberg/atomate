@@ -93,7 +93,10 @@ class CopyVaspOutputs(CopyFiles):
         try:
             self.copy_files()
         except:
-            raise ValueError("Danny: {}\n{}\n{}".format( calc_loc, files_to_copy))
+            print(calc_loc)
+            for u in files_to_copy:
+                print(u)
+            raise ValueError("Danny: {}".format( calc_loc, files_to_copy))
 
     def copy_files(self):
         all_files = self.fileclient.listdir(self.from_dir)
