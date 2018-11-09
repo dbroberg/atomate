@@ -67,7 +67,7 @@ class CopyVaspOutputs(CopyFiles):
     def run_task(self, fw_spec):
 
         calc_loc = get_calc_loc(self["calc_loc"],
-                                fw_spec["calc_loc"]) if self.get(
+                                fw_spec["calc_locs"]) if self.get(
             "calc_loc") else {}
 
         # determine what files need to be copied
