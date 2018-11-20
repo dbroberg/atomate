@@ -780,7 +780,7 @@ class PolarizationToDb(FiretaskBase):
             simp_path = ptask['calcs_reversed'][0]['dir_name']
             if simp_path not in sort_paths.keys():
                 sort_paths[simp_path] = []
-            sort_paths[simp_path].append( [simp_path['last_updated'], pind])
+            sort_paths[simp_path].append( [ptask['last_updated'], pind])
         polarization_tasks = []
         for splist in sort_paths.values(): #add most up to date task
             splist.sort(reverse=True)
