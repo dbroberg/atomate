@@ -784,7 +784,9 @@ class PolarizationToDb(FiretaskBase):
         polarization_tasks = []
         for splist in sort_paths.values(): #add most up to date task
             splist.sort(reverse=True)
-            polarization_tasks.append( tmp_polarization_tasks[ splist[0][1]])
+            recent_index = splist[0][1]
+            logger.info("Appending {} because: {}.".format( recent_index, splist))
+            polarization_tasks.append( list(tmp_polarization_tasks)[recent_index])
 
         tasks = []
         outcars = []
