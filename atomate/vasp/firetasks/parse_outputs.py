@@ -774,7 +774,8 @@ class PolarizationToDb(FiretaskBase):
 
         # updated approach to getting polarization work flow based on path
         polarization_paths = [cl['path'] for cl in fw_spec['calc_locs'] if 'polarization' in cl['name']]
-        tmp_polarization_tasks = vaspdb.collection.find({'calcs_reversed.0.dir_name': {'$in': polarization_paths}})
+        tmp_polarization_tasks = list(vaspdb.collection.find({'calcs_reversed.0.dir_name':
+                                                                  {'$in': polarization_paths}}))
         sort_paths = {}
         for pind, ptask in enumerate(tmp_polarization_tasks): #filter unique paths by most updated
             simp_path = ptask['calcs_reversed'][0]['dir_name']
@@ -785,8 +786,7 @@ class PolarizationToDb(FiretaskBase):
         for splist in sort_paths.values(): #add most up to date task
             splist.sort(reverse=True)
             recent_index = splist[0][1]
-            logger.info("Appending {} because: {}.".format( recent_index, splist))
-            polarization_tasks.append( list(tmp_polarization_tasks)[recent_index])
+            polarization_tasks.append( tmp_polarization_tasks[recent_index])
 
         tasks = []
         outcars = []
