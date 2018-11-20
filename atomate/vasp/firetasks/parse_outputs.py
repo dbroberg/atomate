@@ -893,8 +893,8 @@ class PolarizationToDb(FiretaskBase):
         # non-polar DFT metadata
         for p in polarization_tasks:
             if 'nonpolar_polarization' in p['task_label']:
-                force_dict = {k: p['output'][k][:] for k in ['stress', 'forces', 'energy']}
-        polarization_dict.update({"non_polar_metadata": force_dict})
+                non_polar_metadata_dict = {k: p['output'][k] for k in ['stress', 'forces', 'energy']}
+        polarization_dict.update({"non_polar_metadata": non_polar_metadata_dict})
 
         # Write all the info to db.
         coll = vaspdb.db["polarization_tasks"]
