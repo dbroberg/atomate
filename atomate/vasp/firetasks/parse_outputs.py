@@ -789,6 +789,7 @@ class PolarizationToDb(FiretaskBase):
             polarization_tasks.append( tmp_polarization_tasks[recent_index])
 
         tasks = []
+        task_ids = []
         outcars = []
         structure_dicts = []
         sort_weight = []
@@ -801,6 +802,7 @@ class PolarizationToDb(FiretaskBase):
             energies_per_atom.append(p['calcs_reversed'][0]['output']['energy_per_atom'])
             energies.append(p['calcs_reversed'][0]['output']['energy'])
             tasks.append(p['task_label'])
+            task_ids.append(p['task_id'])
             outcars.append(p['calcs_reversed'][0]['output']['outcar'])
             structure_dicts.append(p['calcs_reversed'][0]['input']['structure'])
             zval_dicts.append(p['calcs_reversed'][0]['output']['outcar']['zval_dict'])
@@ -826,11 +828,11 @@ class PolarizationToDb(FiretaskBase):
 
         # Sort polarization tasks
         # nonpolar -> interpolation_n -> interpolation_n-1 -> ...  -> interpolation_1 -> polar
-        data = zip(tasks, structure_dicts, outcars, energies_per_atom, energies, sort_weight)
+        data = zip(tasks, task_ids, structure_dicts, outcars, energies_per_atom, energies, sort_weight)
         data = sorted(data,key=lambda x: x[-1])
 
         # Get the tasks, structures, etc in sorted order from the zipped data.
-        tasks, structure_dicts, outcars, energies_per_atom, energies, sort_weight = zip(*data)
+        tasks, task_ids, structure_dicts, outcars, energies_per_atom, energies, sort_weight = zip(*data)
 
         structures = [Structure.from_dict(structure) for structure in structure_dicts]
 
@@ -869,7 +871,7 @@ class PolarizationToDb(FiretaskBase):
         # General information
         polarization_dict.update({'pretty_formula': structures[0].composition.reduced_formula})
         # polarization_dict.update({'wfid': wfid})
-        polarization_dict.update({'task_label_order': tasks})
+        polarization_dict.update({'task_label_order': tasks, 'task_ids': task_ids})
 
         # Polarization information
         polarization_dict.update({'polarization_change': p_change})
@@ -887,6 +889,12 @@ class PolarizationToDb(FiretaskBase):
         polarization_dict.update({"energies_per_atom": energies_per_atom})
         polarization_dict.update({'outcars': outcars})
         polarization_dict.update({"structures": structure_dicts})
+
+        # non-polar DFT metadata
+        for p in polarization_tasks:
+            if 'nonpolar_polarization' in p['task_label']:
+                force_dict = {k: p['output'][k][:] for k in ['stress', 'forces', 'energy']}
+        polarization_dict.update({"non_polar_metadata": force_dict})
 
         # Write all the info to db.
         coll = vaspdb.db["polarization_tasks"]
