@@ -231,11 +231,12 @@ class VaspDrone(AbstractDrone):
 
                 for i, d_calc in enumerate(d["calcs_reversed"]):
                     if d_calc.get("output"):
-                        procar = Procar( procar_paths[i])
-                        wavecar = Wavecar( wavecar_paths[i])
-                        structure = Structure.from_dict( d_calc["output"]["structure"])
-                        defect_data = parse_defect_states( structure, self.defect_wf_parsing, wavecar, procar)
-                        d_calc["output"].update({"defect": defect_data})
+                        if len(procar_paths) and len(wavecar_paths):
+                            procar = Procar( procar_paths[i])
+                            wavecar = Wavecar( wavecar_paths[i])
+                            structure = Structure.from_dict( d_calc["output"]["structure"])
+                            defect_data = parse_defect_states( structure, self.defect_wf_parsing, wavecar, procar)
+                            d_calc["output"].update({"defect": defect_data})
 
                         filename = list(vasprun_files.values())[i]
                         vasprun_file = os.path.join(dir_name, filename)
