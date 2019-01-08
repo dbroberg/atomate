@@ -173,7 +173,8 @@ class StaticInterpolateFW(Firework):
             autosort_tol=autosort_tol, vasp_input_set=vasp_input_set,
             vasp_input_set_params=vasp_input_set_params))
 
-        t.append(RunVaspCustodian(vasp_cmd=vasp_cmd, auto_npar=">>auto_npar<<"))
+        t.append(RunVaspCustodian(vasp_cmd=vasp_cmd, auto_npar=">>auto_npar<<",
+                                  gzip_output=False))
         t.append(PassCalcLocs(name=name))
         t.append(VaspToDb(db_file=db_file, additional_fields={"task_label": name}))
 

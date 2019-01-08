@@ -260,6 +260,15 @@ class GetInterpolatedPOSCAR(FiretaskBase):
         if not os.path.exists(os.path.join(os.getcwd(), interpolate_folder)):
             os.makedirs(os.path.join(os.getcwd(), interpolate_folder))
 
+        # decompress CONTCAR at start and end paths if applicable
+        # TODO: do this more elegantly?
+        from monty.shutil import decompress_file
+        for start_end in [self["start"], self["end"]]:
+            calc_loc = get_calc_loc( start_end, fw_spec["calc_locs"])
+            contcar_path = os.path.join( calc_loc["path"], 'CONTCAR.gz')
+            if os.path.exists( contcar_path):
+                decompress_file( contcar_path)
+
         # use method of GrabFilesFromCalcLoc to grab files from previous locations.
         CopyFilesFromCalcLoc(calc_dir=None, calc_loc=self["start"],
                              filenames=["CONTCAR"],

@@ -764,12 +764,28 @@ class PolarizationToDb(FiretaskBase):
 
     def run_task(self, fw_spec):
 
-        wfid = list(filter(lambda x: 'wfid' in x, fw_spec['tags'])).pop()
+        # wfid = list(filter(lambda x: 'wfid' in x, fw_spec['tags'])).pop()
         db_file = env_chk(self.get("db_file"), fw_spec)
         vaspdb = VaspCalcDb.from_db_file(db_file, admin=True)
 
         # ferroelectric workflow groups calculations by generated wfid tag
-        polarization_tasks = vaspdb.collection.find({"tags": wfid, "task_label": {"$regex": ".*polarization"}})
+        # polarization_tasks = vaspdb.collection.find({"tags": wfid, "task_label": {"$regex": ".*polarization"}})
+
+        # updated approach to getting polarization work flow based on path
+        polarization_paths = [cl['path'] for cl in fw_spec['calc_locs'] if 'polarization' in cl['name']]
+        tmp_polarization_tasks = list(vaspdb.collection.find({'calcs_reversed.0.dir_name':
+                                                                  {'$in': polarization_paths}}))
+        sort_paths = {}
+        for pind, ptask in enumerate(tmp_polarization_tasks): #filter unique paths by most updated
+            simp_path = ptask['calcs_reversed'][0]['dir_name']
+            if simp_path not in sort_paths.keys():
+                sort_paths[simp_path] = []
+            sort_paths[simp_path].append( [ptask['last_updated'], pind])
+        polarization_tasks = []
+        for splist in sort_paths.values(): #add most up to date task
+            splist.sort(reverse=True)
+            recent_index = splist[0][1]
+            polarization_tasks.append( tmp_polarization_tasks[recent_index])
 
         tasks = []
         outcars = []
