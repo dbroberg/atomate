@@ -228,24 +228,23 @@ class VaspDrone(AbstractDrone):
                                 self.filter_files( fullpath, file_pattern="PROCAR").values()]
                 wavecar_paths = [os.path.join(fullpath, wpath) for wpath in
                                  self.filter_files( fullpath, file_pattern="WAVECAR").values()]
-                
-                #add wavcar and procar parsing to calcs_reversed
-                d_calc = d["calcs_reversed"][-1] #not reversed yet
-                if d_calc.get("output"):
-                    if len(procar_paths) and len(wavecar_paths):
-                        procar = Procar( procar_paths[-1])
-                        wavecar = Wavecar( wavecar_paths[-1])
-                        structure = Structure.from_dict( d_calc["output"]["structure"])
-                        defect_data = parse_defect_states( structure, self.defect_wf_parsing, wavecar, procar)
-                        d_calc["output"].update({"defect": defect_data})
 
-                filename = list(vasprun_files.values())[-1]
-                vasprun_file = os.path.join(dir_name, filename)
-                vrun = Vasprun(vasprun_file)
-                eigenvalues = vrun.eigenvalues.copy()
-                kpoint_weights = vrun.actual_kpoints_weights
-                vr_eigenvalue_dict = {'eigenvalues': eigenvalues, 'kpoint_weights': kpoint_weights}
-                d_calc["output"].update({"vr_eigenvalue_dict": vr_eigenvalue_dict})
+                for i, d_calc in enumerate(d["calcs_reversed"]):
+                    if d_calc.get("output"):
+                        if len(procar_paths) and len(wavecar_paths):
+                            procar = Procar( procar_paths[i])
+                            wavecar = Wavecar( wavecar_paths[i])
+                            structure = Structure.from_dict( d_calc["output"]["structure"])
+                            defect_data = parse_defect_states( structure, self.defect_wf_parsing, wavecar, procar)
+                            d_calc["output"].update({"defect": defect_data})
+
+                        filename = list(vasprun_files.values())[i]
+                        vasprun_file = os.path.join(dir_name, filename)
+                        vrun = Vasprun(vasprun_file)
+                        eigenvalues = vrun.eigenvalues.copy()
+                        kpoint_weights = vrun.actual_kpoints_weights
+                        vr_eigenvalue_dict = {'eigenvalues': eigenvalues, 'kpoint_weights': kpoint_weights}
+                        d_calc["output"].update({"vr_eigenvalue_dict": vr_eigenvalue_dict})
 
 
             # reverse the calculations data order so newest calc is first
