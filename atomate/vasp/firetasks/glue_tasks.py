@@ -130,7 +130,6 @@ class CopyVaspOutputs(CopyFiles):
             # unzip the .gz if needed
             if gz_ext in ['.gz', ".GZ"]:
                 # unzip dest file
-                print(dest_path)
                 if 'WAVECAR' not in dest_path:
                     f = gzip.open(dest_path + gz_ext, 'rt')
                     file_content = f.read()
@@ -269,8 +268,6 @@ class GetInterpolatedPOSCAR(FiretaskBase):
             os.makedirs(os.path.join(os.getcwd(), interpolate_folder))
 
          # decompress CONTCAR at start and end paths if applicable
-        # TODO: do this more elegantly?
-        from monty.shutil import decompress_file
         for start_end in [self["start"], self["end"]]:
             calc_loc = get_calc_loc( start_end, fw_spec["calc_locs"])
             contcar_path = os.path.join( calc_loc["path"], 'CONTCAR.gz')
