@@ -18,6 +18,8 @@ import gzip
 import os
 import re
 
+from monty.shutil import decompress_file
+
 from pymatgen import MPRester
 from pymatgen.io.vasp.sets import get_vasprun_outcar
 from pymatgen.core.structure import Structure
@@ -128,12 +130,18 @@ class CopyVaspOutputs(CopyFiles):
             # unzip the .gz if needed
             if gz_ext in ['.gz', ".GZ"]:
                 # unzip dest file
-                f = gzip.open(dest_path + gz_ext, 'rt')
-                file_content = f.read()
-                with open(dest_path, 'w') as f_out:
-                    f_out.writelines(file_content)
-                f.close()
-                os.remove(dest_path + gz_ext)
+                print(dest_path)
+                if 'WAVECAR' not in dest_path:
+                    f = gzip.open(dest_path + gz_ext, 'rt')
+                    file_content = f.read()
+                    with open(dest_path, 'w') as f_out:
+                        f_out.writelines(file_content)
+                    f.close()
+                    os.remove(dest_path + gz_ext)
+                else:
+                    # WAVECAR unzipping has issues with decompressing in above manner.
+                    # monty takes care of issue better for WAVECAR
+                    decompress_file( dest_path + gz_ext)
 
 
 @explicit_serialize
