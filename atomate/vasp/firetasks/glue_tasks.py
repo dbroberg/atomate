@@ -128,6 +128,7 @@ class CopyVaspOutputs(CopyFiles):
             # unzip the .gz if needed
             if gz_ext in ['.gz', ".GZ"]:
                 # unzip dest file
+                print(dest_path)
                 if 'WAVECAR' not in dest_path:
                     f = gzip.open(dest_path + gz_ext, 'rt')
                     file_content = f.read()

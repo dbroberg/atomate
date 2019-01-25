@@ -91,7 +91,7 @@ class LcalcpolFW(Firework):
         t.extend([
             # WriteVaspStaticFromPrev(prev_calc_dir="../",other_params={'lcalcpol':True}),
             ModifyIncar(incar_update={'lcalcpol':True}),
-            RunVaspCustodian(vasp_cmd=vasp_cmd, gzip_output=False if interpolate else True),
+            RunVaspCustodian(vasp_cmd=vasp_cmd),
             PassCalcLocs(name=name),
             VaspToDb(db_file=db_file,
                      additional_fields={"task_label": name})])
