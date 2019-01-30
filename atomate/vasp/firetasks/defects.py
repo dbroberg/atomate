@@ -414,6 +414,9 @@ class DefectSetupFiretask(FiretaskBase):
                 chgdef_trans = ["DefectTransformation"]
                 chgdef_trans_params = [{"scaling_matrix": supercell_size,
                                         "defect": defect_for_trans_param}]
+                if structure != defect_for_trans_param.bulk_structure:
+                    print('\n\nERROR!\n{}\n\n{}\n'.format(structure, defect_for_trans_param.bulk_structure))
+                    raise ValueError("Defect bulk_structure is not the same as input structure.")
 
                 def_tag = "{}:{}_{}_{}_{}atoms".format(structure.composition.reduced_formula, job_type,
                                                       defect.name, charge, num_atoms)
