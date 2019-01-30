@@ -29,7 +29,8 @@ from pymatgen.core.structure import Structure
 from pymatgen.core.operations import SymmOp
 from pymatgen.electronic_structure.bandstructure import BandStructureSymmLine
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-from pymatgen.io.vasp import BSVasprun, Vasprun, Outcar, Locpot, Chgcar, parse_defect_states, Procar, Wavecar
+from pymatgen.io.vasp import BSVasprun, Vasprun, Outcar, Locpot, Chgcar, \
+    parse_defect_states, Procar, Wavecar
 from pymatgen.io.vasp.inputs import Poscar, Potcar, Incar, Kpoints
 from pymatgen.apps.borg.hive import AbstractDrone
 from pymatgen.command_line.bader_caller import bader_analysis_from_path
@@ -84,8 +85,8 @@ class VaspDrone(AbstractDrone):
 
     def __init__(self, runs=None, parse_dos="auto", bandstructure_mode="auto",
                  parse_locpot=True, additional_fields=None, use_full_uri=True,
-                 parse_bader=bader_exe_exists, parse_chgcar=False,
-                 parse_aeccar=False, defect_wf_parsing=None):
+                 parse_bader=bader_exe_exists, parse_chgcar=False, parse_aeccar=False,
+                 defect_wf_parsing=None):
         """
         Initialize a Vasp drone to parse vasp outputs
         Args:
@@ -123,7 +124,7 @@ class VaspDrone(AbstractDrone):
         self.parse_bader = parse_bader
         self.parse_chgcar = parse_chgcar
         self.parse_aeccar = parse_aeccar
-        self.defect_wf_parsing= defect_wf_parsing
+        self.defect_wf_parsing = defect_wf_parsing
 
     def assimilate(self, path):
         """
@@ -219,23 +220,23 @@ class VaspDrone(AbstractDrone):
 
             # store defect localization/band filling information
             if self.defect_wf_parsing:
-                #need to make sure all procars and wavecars are zipped
-                for propat in self.filter_files( fullpath, file_pattern="PROCAR").values():
+                # need to make sure all procars and wavecars are zipped
+                for propat in self.filter_files(fullpath, file_pattern="PROCAR").values():
                     decompress_file(os.path.join(fullpath, propat))
-                for wavepat in self.filter_files( fullpath, file_pattern="WAVECAR").values():
+                for wavepat in self.filter_files(fullpath, file_pattern="WAVECAR").values():
                     decompress_file(os.path.join(fullpath, wavepat))
                 procar_paths = [os.path.join(fullpath, ppath) for ppath in
-                                self.filter_files( fullpath, file_pattern="PROCAR").values()]
+                                self.filter_files(fullpath, file_pattern="PROCAR").values()]
                 wavecar_paths = [os.path.join(fullpath, wpath) for wpath in
-                                 self.filter_files( fullpath, file_pattern="WAVECAR").values()]
+                                 self.filter_files(fullpath, file_pattern="WAVECAR").values()]
 
                 for i, d_calc in enumerate(d["calcs_reversed"]):
                     if d_calc.get("output"):
                         if len(procar_paths) and len(wavecar_paths):
-                            procar = Procar( procar_paths[i])
-                            wavecar = Wavecar( wavecar_paths[i])
-                            structure = Structure.from_dict( d_calc["output"]["structure"])
-                            defect_data = parse_defect_states( structure, self.defect_wf_parsing, wavecar, procar)
+                            procar = Procar(procar_paths[i])
+                            wavecar = Wavecar(wavecar_paths[i])
+                            structure = Structure.from_dict(d_calc["output"]["structure"])
+                            defect_data = parse_defect_states(structure, self.defect_wf_parsing, wavecar, procar)
                             d_calc["output"].update({"defect": defect_data})
 
                         filename = list(vasprun_files.values())[i]
@@ -245,7 +246,6 @@ class VaspDrone(AbstractDrone):
                         kpoint_weights = vrun.actual_kpoints_weights
                         vr_eigenvalue_dict = {'eigenvalues': eigenvalues, 'kpoint_weights': kpoint_weights}
                         d_calc["output"].update({"vr_eigenvalue_dict": vr_eigenvalue_dict})
-
 
             # reverse the calculations data order so newest calc is first
             d["calcs_reversed"].reverse()

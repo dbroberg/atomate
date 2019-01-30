@@ -4,48 +4,47 @@ import numpy as np
 import unittest
 
 from atomate.vasp.firetasks.defects import optimize_structure_sc_scale, DefectSetupFiretask
-from atomate.utils.testing import AtomateTest
 
 from pymatgen.core import Structure, PeriodicSite
 from pymatgen.analysis.defects.core import Interstitial
 from pymatgen.util.testing import PymatgenTest
 
 
-# class TestOptimize(PymatgenTest):
-#
-#     def test_optimize_structure_sc_scale(self):
-#         #basic cubic structure test
-#         s = PymatgenTest.get_structure("CsCl")
-#         lattchange = optimize_structure_sc_scale(s, 300)
-#         self.assertSequenceEqual([5, 5, 5], lattchange)
-#         lattchange = optimize_structure_sc_scale(s, 100)
-#         self.assertSequenceEqual([3, 3, 3], lattchange)
-#
-#         #non cubic test
-#         s = PymatgenTest.get_structure("Si")
-#         lattchange = optimize_structure_sc_scale(s, 200)
-#         self.assertSequenceEqual([4, 4, 4], lattchange)
-#         lattchange = optimize_structure_sc_scale(s, 100)
-#         self.assertSequenceEqual([3, 3, 3], lattchange)
-#
-#         #test asking for smaller supercell size than original structure
-#         s.make_supercell(2)
-#         lattchange = optimize_structure_sc_scale(s, len(s) - 2)
-#         self.assertSequenceEqual([1, 1, 1], lattchange)
-#
-#         #test additional scaling for anisotropic lattice constants
-#         s = PymatgenTest.get_structure("Graphite")
-#         lattchange = optimize_structure_sc_scale(s, 300)
-#         self.assertSequenceEqual([6, 6, 2], lattchange)
-#         lattchange = optimize_structure_sc_scale(s, 100)
-#         self.assertSequenceEqual([3, 3, 2], lattchange)
-#
-#         #test additional scaling for anisotropic lattice angles
-#         s = PymatgenTest.get_structure("Li2O")
-#         lattchange = optimize_structure_sc_scale(s, 300)
-#         self.assertSequenceEqual([4, 4, 4], lattchange)
-#         lattchange = optimize_structure_sc_scale(s, 100)
-#         self.assertSequenceEqual([3, 3, 3], lattchange)
+class TestOptimize(PymatgenTest):
+
+    def test_optimize_structure_sc_scale(self):
+        #basic cubic structure test
+        s = PymatgenTest.get_structure("CsCl")
+        lattchange = optimize_structure_sc_scale(s, 300)
+        self.assertSequenceEqual([5, 5, 5], lattchange)
+        lattchange = optimize_structure_sc_scale(s, 100)
+        self.assertSequenceEqual([3, 3, 3], lattchange)
+
+        #non cubic test
+        s = PymatgenTest.get_structure("Si")
+        lattchange = optimize_structure_sc_scale(s, 200)
+        self.assertSequenceEqual([4, 4, 4], lattchange)
+        lattchange = optimize_structure_sc_scale(s, 100)
+        self.assertSequenceEqual([3, 3, 3], lattchange)
+
+        #test asking for smaller supercell size than original structure
+        s.make_supercell(2)
+        lattchange = optimize_structure_sc_scale(s, len(s) - 2)
+        self.assertSequenceEqual([1, 1, 1], lattchange)
+
+        #test additional scaling for anisotropic lattice constants
+        s = PymatgenTest.get_structure("Graphite")
+        lattchange = optimize_structure_sc_scale(s, 300)
+        self.assertSequenceEqual([6, 6, 2], lattchange)
+        lattchange = optimize_structure_sc_scale(s, 100)
+        self.assertSequenceEqual([3, 3, 2], lattchange)
+
+        #test additional scaling for anisotropic lattice angles
+        s = PymatgenTest.get_structure("Li2O")
+        lattchange = optimize_structure_sc_scale(s, 300)
+        self.assertSequenceEqual([4, 4, 4], lattchange)
+        lattchange = optimize_structure_sc_scale(s, 100)
+        self.assertSequenceEqual([3, 3, 3], lattchange)
 
 
 class TestDefectSetupFiretask(PymatgenTest):
@@ -60,9 +59,10 @@ class TestDefectSetupFiretask(PymatgenTest):
 
         #default incar settings used for bulk and defect calcs
         incar = {"EDIFF":.0001, "EDIFFG": 0.001, "ISMEAR":0, "SIGMA":0.05, "ISIF": 2,
-                         "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LAECHG":False, "LWAVE": True}
+                         "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "LWAVE": True}
+
         if is_defect:
-            incar.update( {"NSW": 100, "LAECHG":False, "ADDGRID": True})
+            incar.update( {"NSW": 100, "LAECHG":False})
             self.assertEqual( setuptask['vasp_input_set']['structure']['charge'], charge)
             self.assertTrue( setuptask['vasp_input_set']['use_structure_charge'])
         else:
@@ -299,7 +299,7 @@ class TestDefectSetupFiretask(PymatgenTest):
                                  interstitials=[['H', 'InFit']], initial_charges={})
 
         def_set = ft.run_task({}).as_dict()['detours']
-        self.assertEqual( len(def_set), 4)
+        self.assertEqual( len(def_set), 2)
         def_task_list = []
         for d in def_set:
             setuptask = d['spec']['_tasks'][0]

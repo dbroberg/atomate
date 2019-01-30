@@ -140,7 +140,6 @@ class DefectSetupFiretask(FiretaskBase):
             if NO antisites or substitutions are desired, then just add an empty dict
                 ex. {'None':{}}  yields no antisites or subs
 
-
         interstitials (list):
             If list is totally empty, NO interstitial defects are considered (default).
             Option 1 for generation: If one wants to use Pymatgen to predict interstitial
@@ -153,7 +152,6 @@ class DefectSetupFiretask(FiretaskBase):
                     Interstitial pymatgen.analysis.defects.core object is used to describe the defect of interest
                     NOTE: use great caution with this approach. You better be sure that the supercell with Interstitial in it
                         is same as the bulk supercell...
-
 
         initial_charges (dict):
             says how to specify initial charges for each defect.
@@ -367,10 +365,8 @@ class DefectSetupFiretask(FiretaskBase):
                         charges = get_charges_from_inter( inter)
                         def_structs.append({'charges': charges, 'defect': inter.copy()})
                 else:
-                    charges = get_charges_from_inter( elt_type)
+                    charges = get_charges_from_inter( elt_val)
                     def_structs.append({'charges': charges, 'defect': elt_val.copy()})
-                    #TODO: this should raise ValueError if defect object's bulk structure is not same as structure being used for transformation
-
 
         stdrd_defect_incar_settings = {"EDIFF": 0.0001, "EDIFFG": 0.001, "IBRION":2, "ISMEAR":0, "SIGMA":0.05,
                                        "ISPIN":2,  "ISYM":2, "LVHAR":True, "LVTOT":True, "NSW": 100,
