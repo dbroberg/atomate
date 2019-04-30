@@ -125,7 +125,8 @@ def get_wf_ferroelectric(polar_structure, nonpolar_structure, vasp_cmd="vasp", d
 
     # Add FireTask that uses Polarization object to store spontaneous polarization information
     if add_analysis_task:
-        fw_analysis = Firework(PolarizationToDb(db_file=db_file, name="_polarization_post_processing"),
+        fw_analysis = Firework(PolarizationToDb(db_file=db_file, name="_polarization_post_processing",
+                                                tags=[wfid] + tags),
                                parents=interpolation, name="_polarization_post_processing")
         wf.append(fw_analysis)
 

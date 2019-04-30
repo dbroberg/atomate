@@ -1142,6 +1142,10 @@ class PolarizationToDb(FiretaskBase):
                 non_polar_metadata_dict = {k: p['output'][k] for k in ['stress', 'forces', 'energy']}
         polarization_dict.update({"non_polar_metadata": non_polar_metadata_dict})
 
+        # Add tags if desired
+        if self.get("tags"):
+            polarization_dict.update({'tags': self.get("tags")})
+
         # Write all the info to db.
         coll = vaspdb.db["polarization_tasks"]
         coll.insert_one(polarization_dict)
